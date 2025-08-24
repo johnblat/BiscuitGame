@@ -15,6 +15,9 @@ bytes_png_giant_biscuit := #load("../assets/giant-biscuit.png")
 bytes_png_regular_biscuit := #load("../assets/half-sized-biscuit.png")
 bytes_png_person := #load("../assets/Person_Passing.png")
 bytes_png_cannon := #load("../assets/canon.png")
+bytes_png_unicycle1 := #load("../assets/unicycle1.png")
+bytes_png_rope := #load("../assets/rope.png")
+bytes_png_shark :=#load("../assets/shark2.png")
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -38,15 +41,28 @@ Texture_Id :: enum {
 	Giant_Biscuit,
 	Regular_Biscuit,
 	Cannon,
+	Unicycle1,
+	Rope_Ladder,
+	Shark,
 }
 
 Behavior :: enum {
 	Face_Biscuit,
 	Is_Biscuit,
-	Balloon,
+	Move_Veritcally_On_Parent,
 	Auto_Pass,
 	Moveable,
+	Hazard,
+	Flip_V,
 }
+
+
+// thinking that maybe there is different pass behavior. not used
+Pass_Behavior :: enum {
+	Auto_Target_Next_Entity,
+	Shoot_In_Direction,
+}
+
 
 Entity_Id :: distinct int
 
@@ -65,7 +81,9 @@ Entity :: struct
 	veritcal_move_bounds : f32,
 	wait_timer : f32,
 	wait_timer_duration : f32,
+	collider : rl.Rectangle,
 }
+
 
 entities := [?]Entity {
 	{ pos = [2]f32{0,0}, target_entity_id_to_pass_to = Entity_Id(1)},
@@ -77,10 +95,35 @@ entities := [?]Entity {
 	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Balloon}, speed = 4},
-	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass}, wait_timer_duration = 0.5,},
-	{ pos = [2]f32{22, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Moveable}, speed = 2},
-	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit } },
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4},
+	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass}, wait_timer_duration = 0.25,},
+	{ pos = [2]f32{22, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable}, speed = 6},
+	{ pos = [2]f32{24, 5}, veritcal_move_bounds = 3}, // anchor for next
+	{parent_entity_id = Entity_Id(12), pos = [2]f32{0, 0}, tex_id = .Shark, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 },
+	{ pos = [2]f32{26, 6}, tex_id = .Person, target_entity_id_to_pass_to=Entity_Id(1), behaviors = {.Face_Biscuit}},
+	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} },
+	// just a bunch of placeholders
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{},
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,0}, tex_id = .Rope_Ladder, },
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,1}, tex_id = .Rope_Ladder, },
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,2}, tex_id = .Rope_Ladder, },
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,3}, tex_id = .Rope_Ladder, },
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,4}, tex_id = .Rope_Ladder, },
+
+
 
 }
 
@@ -158,11 +201,18 @@ gmem : ^Game_Memory
 
 entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
 {
+	
 	entity := entities[id]
 	root_pos := entity.pos
 	
 	parent_entity_id := entity.parent_entity_id
 	parent_entity := entities[Root_Entity_Id]
+
+	if id == parent_entity_id
+	{
+		// parent is itself, so... yeah, we just treat this that its the root
+		return root_pos
+	}
 
 	for parent_entity_id != Entity_Id(0)
 	{
@@ -174,6 +224,19 @@ entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
 	return root_pos
 }
 
+
+entity_get_root_collider :: proc(id : Entity_Id) -> rl.Rectangle
+{
+	root_pos := entity_get_root_pos(id)
+	collider := entities[id].collider
+	root_collider := rl.Rectangle {
+		root_pos.x + collider.x,
+		root_pos.y + collider.y,
+		collider.width,
+		collider.height,
+	}
+	return root_collider
+}
 
 entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_id : Entity_Id) -> [2]f32
 {
@@ -361,6 +424,9 @@ game_init :: proc()
     	.Person = bytes_png_person[:],
     	.Regular_Biscuit = bytes_png_regular_biscuit[:],
     	.Cannon = bytes_png_cannon[:],
+    	.Unicycle1 = bytes_png_unicycle1[:],
+    	.Rope_Ladder = bytes_png_rope[:],
+    	.Shark = bytes_png_shark[:],
     }
 
     for bytes, tex_id in texture_bytes_png_map_to_load
@@ -510,20 +576,6 @@ root_state_game :: proc()
        	if can_manually_pass_biscuit
        	{
        		pass_biscuit(biscuit_id)
-       		// biscuit_root_pos := entity_get_root_pos(biscuit_id)
-       		// parent := entities[biscuit.parent_entity_id]
-
-       		// next_parent := parent.target_entity_id_to_pass_to
-       		// biscuit.parent_entity_id = next_parent
-       		// biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
-
-       		// lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
-
-       		// next_parent_ref := &entities[next_parent]
-       		// if .Auto_Pass in next_parent_ref.behaviors
-       		// {
-       		// 	next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
-       		// }
        	}
 
        	if biscuit.lerp_pos.timer.t < biscuit.lerp_pos.timer.duration
@@ -540,10 +592,34 @@ root_state_game :: proc()
        		}
        	}
 
+       	{ // biscuit collides with things
+       		for entity, i in entities
+       		{
+       			e_id := Entity_Id(i)
+       			if e_id == biscuit_id do continue
+       			if .Hazard in entity.behaviors
+       			{
+
+   					biscuit_root_collider := entity_get_root_collider(biscuit_id)
+   					hazard_root_collider := entity_get_root_collider(e_id)
+       				is_biscuit_colliding_with_hazard := rl.CheckCollisionRecs(biscuit_root_collider, hazard_root_collider)
+       				if is_biscuit_colliding_with_hazard
+       				{
+       					biscuit_root_pos := entity_get_root_pos(biscuit_id)
+       					// Note(jblat): This aint good, this just some way to represent that a hazard got in the way of the biscuit
+       					biscuit_relative_to_return_parent := entity_root_pos_to_relative_pos(biscuit_root_pos, entity.target_entity_id_to_pass_to)
+       					biscuit.parent_entity_id = entity.target_entity_id_to_pass_to
+       					biscuit.pos = [2]f32{0,0}
+       					biscuit.lerp_pos.timer.t = biscuit.lerp_pos.timer.duration      				
+   					}
+       			}
+       		}
+       	}
+
        	{ // general behvaior updates
        		for &entity in entities
        		{
-       			if .Balloon in entity.behaviors
+       			if .Move_Veritcally_On_Parent in entity.behaviors
        			{
    					min_y : f32 = 0
    					parent_entity := entities[entity.parent_entity_id]
@@ -557,6 +633,11 @@ root_state_game :: proc()
    					{
    						entity.vel.y = entity.speed
    					}
+       			}
+       			if .Moveable in entity.behaviors
+       			{
+       				// set this here so that only below if an biscuit is on the entity will it set the velocity
+       				entity.vel = 0
        			}
        		}
        	}
@@ -577,6 +658,21 @@ root_state_game :: proc()
        						pass_biscuit(e_id)
        					}
        				}
+       				if .Moveable in parent.behaviors
+	       			{
+	       				if rl.IsKeyDown(.LEFT)
+	       				{
+	       					parent.vel.x = -parent.speed
+	       				}
+	       				else if rl.IsKeyDown(.RIGHT)
+	       				{
+	       					parent.vel.x = parent.speed
+	       				}
+	       				else
+	       				{
+	       					parent.vel.x = 0
+	       				}
+	       			}
        			}
        		}
        	}
@@ -584,6 +680,7 @@ root_state_game :: proc()
        	{ // moving
        		for &entity in entities
        		{
+       			
        			entity.pos += entity.vel * frame_time
        		}
        	}
@@ -691,13 +788,25 @@ root_state_game :: proc()
 
         		flip_x := false
 
-        		if biscuit_is_to_right_of_this_entity
+        		if .Face_Biscuit in entity.behaviors
         		{
-        			flip_x = true
+	        		if biscuit_is_to_right_of_this_entity
+	        		{
+	        			flip_x = true
+	        		}        			
+        		}
+
+        		flip_y := false
+        		if .Flip_V in entity.behaviors
+        		{
+        			if entity.vel.y > 0
+        			{
+        				flip_y = true
+        			}
         		}
 
 
-        		rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x)
+        		rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x, flip_y = flip_y)
 
         		if .Auto_Pass in entity.behaviors
         		{
@@ -777,13 +886,18 @@ root_state_game :: proc()
 
 
      		{
-     			for entity in entities
+     			for entity, i in entities
      			{
+     				e_id := Entity_Id(i)
      				if entity.veritcal_move_bounds > 0
      				{
      					r := rl.Rectangle { entity.pos.x, entity.pos.y, 1, entity.veritcal_move_bounds}
      					rlgrid.draw_rectangle_on_grid(r, rl.Color{255,0,0,50}, 32)
      				}
+     				root_pos := entity_get_root_pos(e_id)
+     				collider_root_pos := root_pos + [2]f32{entity.collider.x, entity.collider.y}
+     				collider_r := rl.Rectangle{collider_root_pos.x, collider_root_pos.y, entity.collider.width, entity.collider.height}
+     				rlgrid.draw_rectangle_on_grid(collider_r, rl.Color{0,0,255,50}, 32)
      			}
      		}
 
