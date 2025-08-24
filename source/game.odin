@@ -14,7 +14,7 @@ bytes_font_data := #load("../assets/joystix monospace.otf")
 bytes_png_giant_biscuit := #load("../assets/giant-biscuit.png")
 bytes_png_regular_biscuit := #load("../assets/half-sized-biscuit.png")
 bytes_png_person := #load("../assets/Person_Passing.png")
-bytes_png_canon := #load("../assets/canon.png")
+bytes_png_cannon := #load("../assets/canon.png")
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -37,12 +37,15 @@ Texture_Id :: enum {
 	Person,
 	Giant_Biscuit,
 	Regular_Biscuit,
+	Cannon,
 }
 
 Behavior :: enum {
 	Face_Biscuit,
 	Is_Biscuit,
 	Balloon,
+	Auto_Pass,
+	Moveable,
 }
 
 Entity_Id :: distinct int
@@ -60,7 +63,8 @@ Entity :: struct
 	behaviors : bit_set[Behavior],
 	speed : f32,
 	veritcal_move_bounds : f32,
-	progress : f32,
+	wait_timer : f32,
+	wait_timer_duration : f32,
 }
 
 entities := [?]Entity {
@@ -72,8 +76,10 @@ entities := [?]Entity {
 	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{18, 4}, }, // anchor for next entity
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Face_Biscuit, .Balloon}, veritcal_move_bounds = 5, speed = 2},
+	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Balloon}, speed = 4},
+	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass}, wait_timer_duration = 0.5,},
+	{ pos = [2]f32{22, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Moveable}, speed = 2},
 	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit } },
 
 }
@@ -187,6 +193,26 @@ entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> En
     }
 
     return Entity_Id(0)
+}
+
+
+pass_biscuit :: proc(biscuit_id : Entity_Id)
+{
+	biscuit := &entities[biscuit_id]
+	biscuit_root_pos := entity_get_root_pos(biscuit_id)
+	parent := entities[biscuit.parent_entity_id]
+
+	next_parent := parent.target_entity_id_to_pass_to
+	biscuit.parent_entity_id = next_parent
+	biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+
+	lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
+
+	next_parent_ref := &entities[next_parent]
+	if .Auto_Pass in next_parent_ref.behaviors
+	{
+		// next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
+	}
 }
 
 
@@ -334,6 +360,7 @@ game_init :: proc()
     	.Giant_Biscuit = bytes_png_giant_biscuit[:],
     	.Person = bytes_png_person[:],
     	.Regular_Biscuit = bytes_png_regular_biscuit[:],
+    	.Cannon = bytes_png_cannon[:],
     }
 
     for bytes, tex_id in texture_bytes_png_map_to_load
@@ -477,22 +504,40 @@ root_state_game :: proc()
        	biscuit_id := entity_find_first_matching_behavior({.Is_Biscuit})
 
    		biscuit := &entities[biscuit_id]
+   		biscuit_parent := entities[biscuit.parent_entity_id]
 
-       	if rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration
+   		can_manually_pass_biscuit := rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration && !(.Auto_Pass in biscuit_parent.behaviors)
+       	if can_manually_pass_biscuit
        	{
-       		biscuit_root_pos := entity_get_root_pos(biscuit_id)
-       		parent := entities[biscuit.parent_entity_id]
-       		next_parent := parent.target_entity_id_to_pass_to
-       		biscuit.parent_entity_id = next_parent
-       		biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+       		pass_biscuit(biscuit_id)
+       		// biscuit_root_pos := entity_get_root_pos(biscuit_id)
+       		// parent := entities[biscuit.parent_entity_id]
 
-       		lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
+       		// next_parent := parent.target_entity_id_to_pass_to
+       		// biscuit.parent_entity_id = next_parent
+       		// biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+
+       		// lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
+
+       		// next_parent_ref := &entities[next_parent]
+       		// if .Auto_Pass in next_parent_ref.behaviors
+       		// {
+       		// 	next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
+       		// }
        	}
 
        	if biscuit.lerp_pos.timer.t < biscuit.lerp_pos.timer.duration
        	{
-       		new_pos := lerp_position_advance(&biscuit.lerp_pos, frame_time)
+       		new_pos, just_finished := lerp_position_advance_and_notify_just_finished(&biscuit.lerp_pos, frame_time)
        		biscuit.pos = new_pos
+       		if just_finished
+       		{
+       			parent := &entities[biscuit.parent_entity_id]
+       			if .Auto_Pass in parent.behaviors
+       			{
+					parent.wait_timer = parent.wait_timer_duration       				
+       			}
+       		}
        	}
 
        	{ // general behvaior updates
@@ -501,7 +546,8 @@ root_state_game :: proc()
        			if .Balloon in entity.behaviors
        			{
    					min_y : f32 = 0
-   					max_y := entity.veritcal_move_bounds
+   					parent_entity := entities[entity.parent_entity_id]
+   					max_y := parent_entity.veritcal_move_bounds
 
    					if entity.pos.y >= max_y
    					{
@@ -515,7 +561,27 @@ root_state_game :: proc()
        		}
        	}
 
-       	{ // 
+       	{ // biscuit affecting parent
+       		for entity, i in entities
+       		{
+       			e_id := Entity_Id(i)
+       			if .Is_Biscuit in entity.behaviors
+       			{
+       				parent := &entities[entity.parent_entity_id]
+       				if .Auto_Pass in parent.behaviors
+       				{
+       					
+       					just_finished := countdown_and_notify_just_finished(&parent.wait_timer, frame_time)
+       					if just_finished
+       					{
+       						pass_biscuit(e_id)
+       					}
+       				}
+       			}
+       		}
+       	}
+
+       	{ // moving
        		for &entity in entities
        		{
        			entity.pos += entity.vel * frame_time
@@ -632,7 +698,18 @@ root_state_game :: proc()
 
 
         		rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x)
-        		// rl.DrawTexturePro(tex, src, dst, [2]f32{0,0}, 0, rl.WHITE)
+
+        		if .Auto_Pass in entity.behaviors
+        		{
+        			p := entity.wait_timer / entity.wait_timer_duration
+        			r := rl.Rectangle{entity.pos.x, entity.pos.y + 1, 1* p, 1}
+        			color := rl.GREEN
+        			if p < 0.25
+        			{
+        				color = rl.RED
+        			}
+        			rlgrid.draw_rectangle_on_grid(r, color, 32)
+        		}
         	}
         }
 
@@ -697,6 +774,18 @@ root_state_game :: proc()
             {
                 rl.DrawLineEx([2]f32{0, startY}, [2]f32{0, endY}, thickness * 2.0, rl.GRAY)
             }
+
+
+     		{
+     			for entity in entities
+     			{
+     				if entity.veritcal_move_bounds > 0
+     				{
+     					r := rl.Rectangle { entity.pos.x, entity.pos.y, 1, entity.veritcal_move_bounds}
+     					rlgrid.draw_rectangle_on_grid(r, rl.Color{255,0,0,50}, 32)
+     				}
+     			}
+     		}
 
 
         }
