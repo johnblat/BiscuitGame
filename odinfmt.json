@@ -1,0 +1,8 @@
+{
+  "character_width": 180,
+  "tabs": false,
+  "tabs_width": 4,
+  "brace_style": "Allman",
+  "spaces_around_colons": true,
+  "spaces": 4
+}
