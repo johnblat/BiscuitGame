@@ -11,15 +11,64 @@ import rlgrid "./rlgrid"
 
 bytes_font_data := #load("../assets/joystix monospace.otf")
 
+bytes_png_giant_biscuit := #load("../assets/giant-biscuit.png")
+bytes_png_regular_biscuit := #load("../assets/half-sized-biscuit.png")
+bytes_png_person := #load("../assets/Person_Passing.png")
+bytes_png_canon := #load("../assets/canon.png")
+
 
 global_filename_window_save_data := "window_save_data.jam"
-global_game_view_pixels_width : f32 = 1280
-global_game_view_pixels_height : f32 = 720
-global_game_texture_grid_cell_size : f32 = 64
+global_game_view_pixels_width : f32 = 1280 / 2
+global_game_view_pixels_height : f32 = 720 / 2
+global_game_texture_grid_cell_size : f32 = 32
 global_number_grid_cells_axis_x : f32 = global_game_view_pixels_width / global_game_texture_grid_cell_size
 global_number_grid_cells_axis_y : f32 = global_game_view_pixels_height / global_game_texture_grid_cell_size
 global_sprite_sheet_cell_size : f32 = 32
 
+
+Load_Texture_Description :: struct 
+{
+	tex_id : Texture_Id,
+	bytes_png : []u8,
+}
+
+Texture_Id :: enum {
+	None,
+	Person,
+	Giant_Biscuit,
+	Regular_Biscuit,
+}
+
+Behavior :: enum {
+	Face_Biscuit,
+	Is_Biscuit,
+}
+
+Entity_Id :: distinct int
+
+Root_Entity_Id :: Entity_Id(0)
+
+Entity :: struct
+{
+	parent_entity_id : Entity_Id,
+	pos : [2]f32,
+	tex_id : Texture_Id,
+	target_entity_id_to_pass_to: Entity_Id,
+	lerp_pos : Lerp_Position,
+	behaviors : bit_set[Behavior],
+}
+
+entities := [?]Entity {
+	{ pos = [2]f32{0,0}, target_entity_id_to_pass_to = Entity_Id(1)},
+	{ pos = [2]f32{4, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(2), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{6, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(3), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{8, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(4), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{10, 5}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(5), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(0), behaviors = {.Face_Biscuit}},
+	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit } },
+}
 
 Window_Save_Data :: struct 
 {
@@ -46,6 +95,10 @@ Game_Memory :: struct
     rectangle :                           rl.Rectangle,
     rectangle_color :                     rl.Color,
     rectangle_lerp_position :             Lerp_Position,
+
+	textures : [Texture_Id]rl.Texture,
+
+	camera : rl.Camera2D,
 
     // Font
     font :                                rl.Font,
@@ -87,6 +140,46 @@ gmem : ^Game_Memory
 
 // 	return 
 // }
+
+
+entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
+{
+	entity := entities[id]
+	root_pos := entity.pos
+	
+	parent_entity_id := entity.parent_entity_id
+	parent_entity := entities[Root_Entity_Id]
+
+	for parent_entity_id != Entity_Id(0)
+	{
+		parent_entity = entities[parent_entity_id]
+		root_pos += parent_entity.pos
+		parent_entity_id = parent_entity.parent_entity_id
+	}
+
+	return root_pos
+}
+
+
+entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_id : Entity_Id) -> [2]f32
+{
+	relative_root_pos := entity_get_root_pos(relative_to_id)
+    return root_pos - relative_root_pos
+}
+
+entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Id
+{
+	for entity, id in entities
+    {
+    	e_id := Entity_Id(id)
+    	if behaviors == entity.behaviors
+    	{
+    		return e_id
+    	}
+    }
+
+    return Entity_Id(0)
+}
 
 
 @(export)
@@ -212,7 +305,7 @@ game_init :: proc()
     gmem.root_state = .Main_Menu
 
     game_render_target := rl.LoadRenderTexture(i32(global_game_view_pixels_width), i32(global_game_view_pixels_height))
-    rl.SetTextureFilter(game_render_target.texture, rl.TextureFilter.BILINEAR)
+    rl.SetTextureFilter(game_render_target.texture, rl.TextureFilter.POINT)
     rl.SetTextureWrap(game_render_target.texture, .CLAMP) // this stops sub-pixel artifacts on edges of game texture
 
     gmem.game_render_target = game_render_target
@@ -228,6 +321,21 @@ game_init :: proc()
 
     gmem.rectangle = rl.Rectangle{0, 0, 1, 1}
     gmem.rectangle_color = rl.GREEN
+
+    texture_bytes_png_map_to_load := #partial [Texture_Id][]byte {
+    	.Giant_Biscuit = bytes_png_giant_biscuit[:],
+    	.Person = bytes_png_person[:],
+    	.Regular_Biscuit = bytes_png_regular_biscuit[:],
+    }
+
+    for bytes, tex_id in texture_bytes_png_map_to_load
+    {
+    	if tex_id == .None do continue
+    	img := rl.LoadImageFromMemory(".png", &bytes[0], i32(len(bytes)))
+    	gmem.textures[tex_id] = rl.LoadTextureFromImage(img)
+    	rl.UnloadImage(img)
+    }
+
 }
 
 
@@ -338,9 +446,10 @@ root_state_game :: proc()
         virtualMouse.x = (mouse.x - (f32(rl.GetScreenWidth()) - (global_game_view_pixels_width * scale)) * 0.5) / scale
         virtualMouse.y = (mouse.y - (f32(rl.GetScreenHeight()) - (global_game_view_pixels_height * scale)) * 0.5) / scale
         virtualMouse = rl.Vector2Clamp(virtualMouse, [2]f32{0, 0}, [2]f32{global_game_view_pixels_width, global_game_view_pixels_height})
-        virtualMouse -= gmem.dbg_camera_offset
-        virtualMouse.x /= gmem.dbg_camera_zoom
-        virtualMouse.y /= gmem.dbg_camera_zoom
+        virtualMouse -= gmem.camera.offset
+        virtualMouse += gmem.camera.target
+        virtualMouse.x /= gmem.camera.zoom
+        virtualMouse.y /= gmem.camera.zoom
         grid_mouse := [2]f32{virtualMouse.x / global_game_texture_grid_cell_size, virtualMouse.y / global_game_texture_grid_cell_size}
 
         if rl.IsMouseButtonPressed(.LEFT) 
@@ -356,6 +465,27 @@ root_state_game :: proc()
             gmem.rectangle.x = new_pos.x
             gmem.rectangle.y = new_pos.y
         }
+
+       	biscuit_id := entity_find_first_matching_behavior({.Is_Biscuit})
+
+   		biscuit := &entities[biscuit_id]
+
+       	if rl.IsKeyPressed(.SPACE)
+       	{
+       		biscuit_root_pos := entity_get_root_pos(biscuit_id)
+       		parent := entities[biscuit.parent_entity_id]
+       		next_parent := parent.target_entity_id_to_pass_to
+       		biscuit.parent_entity_id = next_parent
+       		biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+
+       		lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
+       	}
+
+       	if biscuit.lerp_pos.timer.t < biscuit.lerp_pos.timer.duration
+       	{
+       		new_pos := lerp_position_advance(&biscuit.lerp_pos, frame_time)
+       		biscuit.pos = new_pos
+       	}
 
     }
 
@@ -390,17 +520,27 @@ root_state_game :: proc()
 
     
     {     // DRAW TO RENDER TEXTURE
-        camera := rl.Camera2D \
+
+
+        gmem.camera.offset = gmem.dbg_camera_offset
+        gmem.camera.offset.x += global_game_view_pixels_width/2
+        gmem.camera.offset.y += global_game_view_pixels_height/2
+        gmem.camera.zoom = gmem.dbg_camera_zoom
+
+        for entity, id in entities
         {
-            offset   = gmem.dbg_camera_offset,
-            target   = [2]f32{0, 0},
-            rotation = 0,
-            zoom     = gmem.dbg_camera_zoom,
+        	e_id := Entity_Id(id)
+        	if .Is_Biscuit in entity.behaviors
+        	{
+        		biscuit_root_pos := entity_get_root_pos(e_id)
+        		actual_pos := rlgrid.get_actual_pos(biscuit_root_pos, 32)
+        		gmem.camera.target = actual_pos 
+        	}
         }
 
         rl.BeginTextureMode(gmem.game_render_target)
 
-        rl.BeginMode2D(camera)
+        rl.BeginMode2D(gmem.camera)
 
         rl.ClearBackground(rl.LIGHTGRAY)
 
@@ -408,6 +548,57 @@ root_state_game :: proc()
         
         {
             rlgrid.draw_rectangle_on_grid_justified(gmem.rectangle, gmem.rectangle_color, global_game_texture_grid_cell_size, .Centered, .Centered)
+        }
+
+        {
+        	for entity in entities
+        	{
+        		tex := gmem.textures[entity.tex_id]
+        		
+        		root_pos := entity.pos
+        		
+        		parent_entity_id := entity.parent_entity_id
+        		parent_entity := entities[Root_Entity_Id]
+
+        		for parent_entity_id != Entity_Id(0)
+        		{
+        			parent_entity = entities[parent_entity_id]
+        			root_pos += parent_entity.pos
+        			parent_entity_id = parent_entity.parent_entity_id
+        		}
+
+        		tex_width_f := f32(tex.width)
+        		tex_height_f := f32(tex.height)
+        		src := rl.Rectangle {0,0, 1, 1}
+        		dst := rl.Rectangle {root_pos.x, root_pos.y, 1, 1}
+
+        		biscuit_id := Entity_Id(0)
+        		for entity, id in entities
+        		{ // find first biscuit
+        			e_id := Entity_Id(id)
+
+        			if .Is_Biscuit in entity.behaviors
+        			{
+        				biscuit_id = e_id
+        				break
+        			}
+        		}
+
+        		biscuit_root_pos := entity_get_root_pos(biscuit_id)
+        		biscuit_is_to_left_of_this_entity := biscuit_root_pos.x < root_pos.x
+        		biscuit_is_to_right_of_this_entity := biscuit_root_pos.x > root_pos.x
+
+        		flip_x := false
+
+        		if biscuit_is_to_right_of_this_entity
+        		{
+        			flip_x = true
+        		}
+
+
+        		rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x)
+        		// rl.DrawTexturePro(tex, src, dst, [2]f32{0,0}, 0, rl.WHITE)
+        	}
         }
 
         if gmem.dbg_show_grid && gmem.dbg_camera_zoom > 0.09 
@@ -420,7 +611,7 @@ root_state_game :: proc()
             // Convert all 4 render texture corners to world space
             rc := [4][2]f32{{0, 0}, {render_width, 0}, {0, render_height}, {render_width, render_height}}
 
-            wc := [4][2]f32{rl.GetScreenToWorld2D(rc[0], camera), rl.GetScreenToWorld2D(rc[1], camera), rl.GetScreenToWorld2D(rc[2], camera), rl.GetScreenToWorld2D(rc[3], camera)}
+            wc := [4][2]f32{rl.GetScreenToWorld2D(rc[0], gmem.camera), rl.GetScreenToWorld2D(rc[1], gmem.camera), rl.GetScreenToWorld2D(rc[2], gmem.camera), rl.GetScreenToWorld2D(rc[3], gmem.camera)}
 
             minX : f32 = wc[0].x
             maxX : f32 = wc[0].x
@@ -441,11 +632,11 @@ root_state_game :: proc()
             endY : f32 = math.ceil(maxY / global_game_texture_grid_cell_size) * global_game_texture_grid_cell_size
 
             // Optional: keep roughly 1px thickness regardless of zoom (since we're inside BeginMode2D)
-            thickness : f32 = (camera.zoom > 0.0) ? (1.0 / camera.zoom) : 1.0
+            thickness : f32 = (gmem.camera.zoom > 0.0) ? (1.0 / gmem.camera.zoom) : 1.0
 
             // Optional: when zoomed way out, skip lines so spacing stays >= ~8px on screen
             minPixelSpacing : f32 = 8.0
-            stepMul : int = int(math.ceil(minPixelSpacing) / (global_game_texture_grid_cell_size * (camera.zoom > 0 ? camera.zoom : 1.0)))
+            stepMul : int = int(math.ceil(minPixelSpacing) / (global_game_texture_grid_cell_size * (gmem.camera.zoom > 0 ? gmem.camera.zoom : 1.0)))
             if stepMul < 1 do stepMul = 1
             if stepMul > 100 do stepMul = 100
 
@@ -477,6 +668,11 @@ root_state_game :: proc()
 
 
         rl.EndMode2D()
+
+        {
+        	text_pos_of_rectangle_cursor := fmt.ctprintf("(%.2f, %.2f)", gmem.rectangle.x, gmem.rectangle.y)
+            rlgrid.draw_text_on_grid(gmem.font, text_pos_of_rectangle_cursor, [2]f32{0,0}, 0.5, 0, rl.BLACK, global_game_texture_grid_cell_size)
+        }
 
         rl.EndTextureMode()
     }
@@ -510,9 +706,12 @@ root_state_main_menu :: proc()
     defer rl.EndTextureMode()
 
     rl.ClearBackground(rl.BLACK)
-    title_centered_pos := [2]f32{global_number_grid_cells_axis_x / 2, 5}
-    rlgrid.draw_text_on_grid_centered(gmem.font, "GAME", title_centered_pos, 2, 0, rl.GREEN, global_game_texture_grid_cell_size)
+    title_centered_pos := [2]f32{global_number_grid_cells_axis_x / 2, 3}
+    rlgrid.draw_text_on_grid_centered(gmem.font, "BISCUIT BOY", title_centered_pos, 2, 0, rl.GREEN, global_game_texture_grid_cell_size)
     title_centered_pos.y += 2
+    rlgrid.draw_text_on_grid_centered(gmem.font, "AND THE MAGIC TEA CUP", title_centered_pos, 1, 0, rl.GREEN, global_game_texture_grid_cell_size)
+    title_centered_pos.y += 2
+
 
     if visible 
     {
