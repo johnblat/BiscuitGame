@@ -42,6 +42,7 @@ Texture_Id :: enum {
 Behavior :: enum {
 	Face_Biscuit,
 	Is_Biscuit,
+	Balloon,
 }
 
 Entity_Id :: distinct int
@@ -51,11 +52,15 @@ Root_Entity_Id :: Entity_Id(0)
 Entity :: struct
 {
 	parent_entity_id : Entity_Id,
+	vel : [2]f32,
 	pos : [2]f32,
 	tex_id : Texture_Id,
 	target_entity_id_to_pass_to: Entity_Id,
 	lerp_pos : Lerp_Position,
 	behaviors : bit_set[Behavior],
+	speed : f32,
+	veritcal_move_bounds : f32,
+	progress : f32,
 }
 
 entities := [?]Entity {
@@ -66,8 +71,11 @@ entities := [?]Entity {
 	{ pos = [2]f32{10, 5}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(5), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(0), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
+	{ pos = [2]f32{18, 4}, }, // anchor for next entity
+	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Face_Biscuit, .Balloon}, veritcal_move_bounds = 5, speed = 2},
 	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit } },
+
 }
 
 Window_Save_Data :: struct 
@@ -470,7 +478,7 @@ root_state_game :: proc()
 
    		biscuit := &entities[biscuit_id]
 
-       	if rl.IsKeyPressed(.SPACE)
+       	if rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration
        	{
        		biscuit_root_pos := entity_get_root_pos(biscuit_id)
        		parent := entities[biscuit.parent_entity_id]
@@ -485,6 +493,33 @@ root_state_game :: proc()
        	{
        		new_pos := lerp_position_advance(&biscuit.lerp_pos, frame_time)
        		biscuit.pos = new_pos
+       	}
+
+       	{ // general behvaior updates
+       		for &entity in entities
+       		{
+       			if .Balloon in entity.behaviors
+       			{
+   					min_y : f32 = 0
+   					max_y := entity.veritcal_move_bounds
+
+   					if entity.pos.y >= max_y
+   					{
+   						entity.vel.y = -entity.speed
+   					}
+   					else if entity.pos.y <= min_y
+   					{
+   						entity.vel.y = entity.speed
+   					}
+       			}
+       		}
+       	}
+
+       	{ // 
+       		for &entity in entities
+       		{
+       			entity.pos += entity.vel * frame_time
+       		}
        	}
 
     }
