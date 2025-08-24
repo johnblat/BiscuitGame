@@ -96,8 +96,8 @@ entities := [?]Entity {
 	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
 	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4},
-	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass}, wait_timer_duration = 0.25,},
-	{ pos = [2]f32{22, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable}, speed = 6},
+	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,},
+	{ pos = [2]f32{22, 6}, tex_id = .Unicycle1, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable, .Face_Biscuit}, speed = 6},
 	{ pos = [2]f32{24, 5}, veritcal_move_bounds = 3}, // anchor for next
 	{parent_entity_id = Entity_Id(12), pos = [2]f32{0, 0}, tex_id = .Shark, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 },
 	{ pos = [2]f32{26, 6}, tex_id = .Person, target_entity_id_to_pass_to=Entity_Id(1), behaviors = {.Face_Biscuit}},
@@ -122,10 +122,49 @@ entities := [?]Entity {
 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,2}, tex_id = .Rope_Ladder, },
 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,3}, tex_id = .Rope_Ladder, },
 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,4}, tex_id = .Rope_Ladder, },
+}
 
 
+hot_script :: proc()
+{
+	// this is all just ideas. not sure if it will play out in practice.
+	// I was moreso thinking of ways that brian can quickly create levels and layouts if writing code is the quickest way
+	// the idea is that there is this function which acts as a script that will run once on a hot-reload of the game
+
+	// Everything in this function is meant to be treated as if it were a one-shot script
+	// one you hot reload the game, it will do whatever u tell it. If you run it again, it will do what u tell it again
+	// so, if you run the script twice to create persons, it will create those persons AGAIN
+
+	// you can even run single commands like:
+	//
+	// save_level()
+	//
+	// which will just save the working state of the level
+	//
+	// or
+	//
+	// reset_level_to_initial_state() which will set things to their initial state, including the biscuit back to it's initial holder
+	//
+	//
+	// or something more complex
+	// here are some examples
+
+	// switch_level : changes level, all unsaved changes will be lost
+
+	// restart_level_to_initial_state()
+	// switch_level()
+	// save()
+	// create_person()
+	// assign_initial_biscuit_holder(id)
+	// create_jumping_shark(top_of_jump, length, offset, )
+	// create_ladder_climber(top_of_ladder, length, offset)
+	// create_unicyclist(leftmost_pos, allowable_travel_length, offset)
+	// pass_directly_to_target(from, to)
+	// auto_shoot_in_direction(from, direction)
+	
 
 }
+
 
 Window_Save_Data :: struct 
 {
