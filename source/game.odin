@@ -17,8 +17,9 @@ bytes_png_person := #load("../assets/Person_Passing.png")
 bytes_png_cannon := #load("../assets/canon.png")
 bytes_png_unicycle1 := #load("../assets/unicycle1.png")
 bytes_png_rope := #load("../assets/rope.png")
-bytes_png_shark :=#load("../assets/shark2.png")
-
+bytes_png_shark := #load("../assets/shark2.png")
+bytes_png_georgie := #load("../assets/georgie.png")
+bytes_png_reticle := #load("../assets/reticle.png")
 
 global_filename_window_save_data := "window_save_data.jam"
 global_game_view_pixels_width : f32 = 1280 / 2
@@ -44,6 +45,8 @@ Texture_Id :: enum {
 	Unicycle1,
 	Rope_Ladder,
 	Shark,
+	Georgie,
+	Reticle,
 }
 
 Behavior :: enum {
@@ -54,6 +57,9 @@ Behavior :: enum {
 	Moveable,
 	Hazard,
 	Flip_V,
+	Orbiting_Around_Parent,
+	Swing_Around_Parent,
+	Shoot_In_Direction,
 }
 
 
@@ -72,63 +78,106 @@ Entity :: struct
 {
 	handle : Entity_Handle,
 	parent_entity_handle : Entity_Handle,
+
 	vel : [2]f32,
 	pos : [2]f32,
-	tex_id : Texture_Id,
-	target_entity_handle_to_pass_to: Entity_Handle,
-	lerp_pos : Lerp_Position,
-	behaviors : bit_set[Behavior],
 	speed : f32,
+	collider : rl.Rectangle,
+	tex_id : Texture_Id,
+
+	target_entity_handle_to_pass_to: Entity_Handle,
+
+	lerp_pos : Lerp_Position,
+
+	behaviors : bit_set[Behavior],
+	
 	veritcal_move_bounds : f32,
+	
 	wait_timer : f32,
 	wait_timer_duration : f32,
-	collider : rl.Rectangle,
+	
+
+	orbiting_dir : i32, // + or -
+	orbiting_distance : f32,
+	orbiting_angle : f32,
+
+	swing_angle_start : f32,
+	swing_angle_end : f32,
+
+	aim_angle : f32,
 }
 
-entities : Handle_Array(Entity, Entity_Handle)
+
 
 biscuit_h : Entity_Handle
 
 set_parent :: proc(entity_handle, parent_entity_handle : Entity_Handle)
 {
-	e_ptr := ha_get_ptr(entities, entity_handle)
+	e_ptr := ha_get_ptr(gmem.entities, entity_handle)
 	e_ptr.parent_entity_handle = parent_entity_handle
 }
 
 set_target_to_pass_to :: proc(entity_handle, target_entity_handle : Entity_Handle)
 {
-	ptr := ha_get_ptr(entities, entity_handle)
+	ptr := ha_get_ptr(gmem.entities, entity_handle)
 	ptr.target_entity_handle_to_pass_to = target_entity_handle
+}
+
+
+degrees_to_radians :: proc(degrees : f32) -> f32
+{
+	radians := degrees * (math.TAU / 360.0)
+	return radians
+}
+
+radians_to_degrees :: proc(radians : f32) -> f32
+{
+	degrees := radians * (360 / math.TAU)
+	return degrees
 }
 
 create_level_1 :: proc()
 {
-	ha_clear(&entities)
-	e1_h := ha_add(&entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e2_h := ha_add(&entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e3_h := ha_add(&entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e4_h := ha_add(&entities, Entity { pos = [2]f32{10, 5}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e5_h := ha_add(&entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e6_h := ha_add(&entities, Entity { pos = [2]f32{14, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e7_h := ha_add(&entities, Entity { pos = [2]f32{16, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e8_h := ha_add(&entities, Entity { pos = [2]f32{20, 6}, tex_id = .Cannon,  behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,})
-	e9_h := ha_add(&entities, Entity { pos = [2]f32{22, 6}, tex_id = .Unicycle1,  behaviors = {.Moveable, .Face_Biscuit}, speed = 6})
-	e10_h := ha_add(&entities, Entity { pos = [2]f32{26, 6}, tex_id = .Person, behaviors = {.Face_Biscuit}})
-	e11_h := ha_add(&entities, Entity { pos = [2]f32{0, 0}, tex_id = .Person, behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4})
+	ha_clear(&gmem.entities)
 
-	h1_h := ha_add(&entities, Entity { pos = [2]f32{0, 0}, tex_id = .Shark, behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 })
-	
-	av1_h := ha_add(&entities, Entity { pos = [2]f32{18, 4}, veritcal_move_bounds = 5}) // anchor for next entity
-	av2_h := ha_add(&entities, Entity { pos = [2]f32{24, 5}, veritcal_move_bounds = 3}) // anchor for next
+	av1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{18, 4}, veritcal_move_bounds = 5}) // anchor for next entity
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,0}, tex_id = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,1}, tex_id = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,2}, tex_id = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,3}, tex_id = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,4}, tex_id = .Rope_Ladder, })
+
+	av2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{24, 5}, veritcal_move_bounds = 3}) // anchor for next
+
+	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	// e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Shoot_In_Direction}, aim_angle = degrees_to_radians(270)})
+	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 5}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e5_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e6_h := ha_add(&gmem.entities, Entity { pos = [2]f32{14, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e7_h := ha_add(&gmem.entities, Entity { pos = [2]f32{16, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e8_h := ha_add(&gmem.entities, Entity { pos = [2]f32{20, 6}, tex_id = .Cannon,  behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,})
+	e9_h := ha_add(&gmem.entities, Entity { pos = [2]f32{22, 6}, tex_id = .Unicycle1,  behaviors = {.Moveable, .Face_Biscuit}, speed = 6})
+	e10_h := ha_add(&gmem.entities, Entity { pos = [2]f32{26, 6}, tex_id = .Person, behaviors = {.Face_Biscuit}})
+	e11_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, tex_id = .Person, behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4})
+
+	h1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, tex_id = .Shark, behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 })
+	set_target_to_pass_to(h1_h, e1_h)
+	g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, tex_id = .Georgie, behaviors = {.Orbiting_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3})
+	set_parent(g_h, e1_h)
+
+	swingin_g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, tex_id = .Georgie, behaviors = {.Orbiting_Around_Parent, .Swing_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3, swing_angle_end = degrees_to_radians(180 - 10), swing_angle_start = degrees_to_radians(0 + 10)})
+	set_parent(swingin_g_h, e4_h)
 
 	set_parent(e11_h, av1_h)
 	set_parent(h1_h, av2_h)
 
 
-	biscuit_h = ha_add(&entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, e1_h)
 
-	pass_ring := [?]Entity_Handle{e1_h, e2_h, e3_h, e4_h, e5_h, e6_h, e7_h, e11_h, e8_h, e9_h, e10_h, }
+	pass_ring := [?]Entity_Handle{e1_h, swingin_g_h, e2_h, e3_h, e4_h, e5_h, e6_h, e7_h, e11_h, e8_h, e9_h, e10_h, }
 	
 	for i := 0; i < len(pass_ring); i+=1
 	{
@@ -137,46 +186,9 @@ create_level_1 :: proc()
 		next_h := pass_ring[next_i]
 		set_target_to_pass_to(this_h, next_h)
 	}
-}
 
-// entities := [?]Entity {
-// 	{ pos = [2]f32{0,0}, target_entity_id_to_pass_to = Entity_Id(1)},
-// 	{ pos = [2]f32{4, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(2), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{6, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(3), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{8, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(4), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{10, 5}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(5), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
-// 	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4},
-// 	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,},
-// 	{ pos = [2]f32{22, 6}, tex_id = .Unicycle1, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable, .Face_Biscuit}, speed = 6},
-// 	{ pos = [2]f32{24, 5}, veritcal_move_bounds = 3}, // anchor for next
-// 	{parent_entity_id = Entity_Id(12), pos = [2]f32{0, 0}, tex_id = .Shark, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 },
-// 	{ pos = [2]f32{26, 6}, tex_id = .Person, target_entity_id_to_pass_to=Entity_Id(1), behaviors = {.Face_Biscuit}},
-// 	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} },
-// 	// just a bunch of placeholders
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{},
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,0}, tex_id = .Rope_Ladder, },
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,1}, tex_id = .Rope_Ladder, },
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,2}, tex_id = .Rope_Ladder, },
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,3}, tex_id = .Rope_Ladder, },
-// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,4}, tex_id = .Rope_Ladder, },
-// }
+
+}
 
 /**
  * Also, i was trying to think in terms of some Pass_Behaviors if that makes sense.
@@ -258,6 +270,8 @@ Game_Memory :: struct
 {
     root_state :                          Root_State,
 
+	entities : Handle_Array(Entity, Entity_Handle),
+
     // VIEW
     game_render_target :                  rl.RenderTexture,
 
@@ -313,36 +327,11 @@ gmem : ^Game_Memory
 // }
 
 
-// entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
-// {
-	
-// 	entity := entities[id]
-// 	root_pos := entity.pos
-	
-// 	parent_entity_id := entity.parent_entity_id
-// 	parent_entity := entities[Root_Entity_Id]
-
-// 	if id == parent_entity_id
-// 	{
-// 		// parent is itself, so... yeah, we just treat this that its the root
-// 		return root_pos
-// 	}
-
-// 	for parent_entity_id != Entity_Id(0)
-// 	{
-// 		parent_entity = entities[parent_entity_id]
-// 		root_pos += parent_entity.pos
-// 		parent_entity_id = parent_entity.parent_entity_id
-// 	}
-
-// 	return root_pos
-// }
-
 
 entity_get_root_pos :: proc(handle : Entity_Handle) -> [2]f32
 {
 	
-	entity, _ := ha_get(entities, handle)
+	entity, _ := ha_get(gmem.entities, handle)
 	root_pos := entity.pos
 	
 	parent_entity_handle := entity.parent_entity_handle
@@ -356,7 +345,7 @@ entity_get_root_pos :: proc(handle : Entity_Handle) -> [2]f32
 
 	for parent_entity_handle.idx != 0
 	{
-		parent_entity, _ = ha_get(entities, parent_entity_handle)
+		parent_entity, _ = ha_get(gmem.entities, parent_entity_handle)
 		root_pos += parent_entity.pos
 		parent_entity_handle = parent_entity.parent_entity_handle
 	}
@@ -365,23 +354,11 @@ entity_get_root_pos :: proc(handle : Entity_Handle) -> [2]f32
 }
 
 
-// entity_get_root_collider :: proc(id : Entity_Id) -> rl.Rectangle
-// {
-// 	root_pos := entity_get_root_pos(id)
-// 	collider := entities[id].collider
-// 	root_collider := rl.Rectangle {
-// 		root_pos.x + collider.x,
-// 		root_pos.y + collider.y,
-// 		collider.width,
-// 		collider.height,
-// 	}
-// 	return root_collider
-// }
 
 entity_get_root_collider :: proc(handle : Entity_Handle) -> rl.Rectangle
 {
 	root_pos := entity_get_root_pos(handle)
-	e, _ := ha_get(entities, handle)
+	e, _ := ha_get(gmem.entities, handle)
 	collider := e.collider
 	root_collider := rl.Rectangle {
 		root_pos.x + collider.x,
@@ -392,11 +369,7 @@ entity_get_root_collider :: proc(handle : Entity_Handle) -> rl.Rectangle
 	return root_collider
 }
 
-// entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_id : Entity_Id) -> [2]f32
-// {
-// 	relative_root_pos := entity_get_root_pos(relative_to_id)
-//     return root_pos - relative_root_pos
-// }
+
 
 entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_handle : Entity_Handle) -> [2]f32
 {
@@ -404,23 +377,9 @@ entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_handle : 
     return root_pos - relative_root_pos
 }
 
-// entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Id
-// {
-// 	for entity, id in entities
-//     {
-//     	e_id := Entity_Id(id)
-//     	if behaviors == entity.behaviors
-//     	{
-//     		return e_id
-//     	}
-//     }
-
-//     return Entity_Id(0)
-// }
-
 entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Handle
 {
-	entity_iter := ha_make_iter(entities)
+	entity_iter := ha_make_iter(gmem.entities)
 	for entity, handle in ha_iter(&entity_iter)
 	{
 		if behaviors == entity.behaviors
@@ -433,30 +392,11 @@ entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> En
 }
 
 
-// pass_biscuit :: proc(biscuit_id : Entity_Id)
-// {
-// 	biscuit := &entities[biscuit_id]
-// 	biscuit_root_pos := entity_get_root_pos(biscuit_id)
-// 	parent := entities[biscuit.parent_entity_id]
-
-// 	next_parent := parent.target_entity_id_to_pass_to
-// 	biscuit.parent_entity_id = next_parent
-// 	biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
-
-// 	lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
-
-// 	next_parent_ref := &entities[next_parent]
-// 	if .Auto_Pass in next_parent_ref.behaviors
-// 	{
-// 		// next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
-// 	}
-// }
-
 pass_biscuit :: proc(biscuit_handle : Entity_Handle)
 {
-	biscuit := ha_get_ptr(entities, biscuit_handle)
+	biscuit := ha_get_ptr(gmem.entities, biscuit_handle)
 	biscuit_root_pos := entity_get_root_pos(biscuit_handle)
-	parent := ha_get_ptr(entities, biscuit.parent_entity_handle)
+	parent := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
 
 	next_parent_handle := parent.target_entity_handle_to_pass_to
 	biscuit.parent_entity_handle = next_parent_handle
@@ -484,6 +424,7 @@ game_memory_ptr :: proc() -> rawptr
 game_hot_reload :: proc(mem : rawptr) 
 {
     gmem = (^Game_Memory)(mem)
+    create_level_1()
 }
 
 
@@ -614,6 +555,8 @@ game_init :: proc()
     	.Unicycle1 = bytes_png_unicycle1[:],
     	.Rope_Ladder = bytes_png_rope[:],
     	.Shark = bytes_png_shark[:],
+    	.Georgie = bytes_png_georgie[:],
+    	.Reticle = bytes_png_reticle[:],
     }
 
     for bytes, tex_id in texture_bytes_png_map_to_load
@@ -637,6 +580,8 @@ root_state_main_menu_enter :: proc()
 
 root_state_game :: proc() 
 {
+
+	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 20, 20}
 
     if rl.IsKeyPressed(.ENTER) 
     {
@@ -758,13 +703,16 @@ root_state_game :: proc()
 
        	biscuit_id := entity_find_first_matching_behavior({.Is_Biscuit})
 
-   		biscuit := ha_get_ptr(entities, biscuit_h)
-   		biscuit_parent, _ := ha_get(entities, biscuit.parent_entity_handle)
+   		biscuit := ha_get_ptr(gmem.entities, biscuit_h)
+   		biscuit_parent, _ := ha_get(gmem.entities, biscuit.parent_entity_handle)
 
    		can_manually_pass_biscuit := rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration && !(.Auto_Pass in biscuit_parent.behaviors)
        	if can_manually_pass_biscuit
        	{
-       		pass_biscuit(biscuit_id)
+       		if !(.Shoot_In_Direction in biscuit_parent.behaviors)
+       		{
+	       		pass_biscuit(biscuit_id)
+       		}
        	}
 
        	if biscuit.lerp_pos.timer.t < biscuit.lerp_pos.timer.duration
@@ -773,7 +721,8 @@ root_state_game :: proc()
        		biscuit.pos = new_pos
        		if just_finished
        		{
-       			parent_ptr := ha_get_ptr(entities, biscuit.parent_entity_handle)
+       			// TODO(jblat) : yuck
+       			parent_ptr := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
        			if .Auto_Pass in parent_ptr.behaviors
        			{
 					parent_ptr.wait_timer = parent_ptr.wait_timer_duration       				
@@ -782,7 +731,7 @@ root_state_game :: proc()
        	}
 
        	{ // biscuit collides with things
-       		entity_iter := ha_make_iter(entities)
+       		entity_iter := ha_make_iter(gmem.entities)
        		for entity, handle in ha_iter(&entity_iter)
        		{
        			if handle == biscuit_h do continue
@@ -805,14 +754,14 @@ root_state_game :: proc()
        	}
 
        	{ // general behvaior updates
-       		entity_iter := ha_make_iter(entities)
+       		entity_iter := ha_make_iter(gmem.entities)
        		for entity, handle in ha_iter(&entity_iter)
        		{
-       			entity_ptr := ha_get_ptr(entities, handle)
+       			entity_ptr := ha_get_ptr(gmem.entities, handle)
        			if .Move_Veritcally_On_Parent in entity.behaviors
        			{
    					min_y : f32 = 0
-   					parent_entity, _ := ha_get(entities, entity.parent_entity_handle)
+   					parent_entity, _ := ha_get(gmem.entities, entity.parent_entity_handle)
    					max_y := parent_entity.veritcal_move_bounds
 
    					if entity.pos.y >= max_y
@@ -829,50 +778,119 @@ root_state_game :: proc()
        				// set this here so that only below if an biscuit is on the entity will it set the velocity
        				entity_ptr.vel = 0
        			}
+       			if .Orbiting_Around_Parent in entity.behaviors
+       			{
+       				entity_ptr.orbiting_angle += f32(entity.orbiting_dir) * entity.speed * frame_time
+
+       				entity_ptr.orbiting_angle = math.mod(entity_ptr.orbiting_angle, math.TAU)
+
+       				entity_ptr.pos = [2]f32 {
+       					math.cos(entity.orbiting_angle) * entity.orbiting_distance,
+       					math.sin(entity.orbiting_angle) * entity.orbiting_distance,
+       				}
+       			}
+       			if .Swing_Around_Parent in entity.behaviors
+   				{
+   					if entity_ptr.orbiting_dir > 0 && entity_ptr.orbiting_angle >= entity_ptr.swing_angle_end
+   					{
+   						entity_ptr.orbiting_dir = -(entity_ptr.orbiting_dir)
+   					}
+   					else if entity_ptr.orbiting_dir < 0 && entity_ptr.orbiting_angle <= entity_ptr.swing_angle_start
+   					{
+   						entity_ptr.orbiting_dir = -(entity_ptr.orbiting_dir)
+   					}
+   				}
        		}
        	}
 
-       	{ // biscuit affecting parent
-       		entity_iter := ha_make_iter(entities)
-       		for entity, handle in ha_iter(&entity_iter)
-       		{
-       			if .Is_Biscuit in entity.behaviors
-       			{
-       				parent_ptr := ha_get_ptr(entities, entity.parent_entity_handle)
-       				if .Auto_Pass in parent_ptr.behaviors
-       				{
-       					
-       					just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
-       					if just_finished
-       					{
-       						pass_biscuit(handle)
-       					}
-       				}
-       				if .Moveable in parent_ptr.behaviors
-	       			{
-	       				if rl.IsKeyDown(.LEFT)
-	       				{
-	       					parent_ptr.vel.x = -parent_ptr.speed
-	       				}
-	       				else if rl.IsKeyDown(.RIGHT)
-	       				{
-	       					parent_ptr.vel.x = parent_ptr.speed
-	       				}
-	       				else
-	       				{
-	       					parent_ptr.vel.x = 0
-	       				}
-	       			}
-       			}
-       		}
+   		{ // biscuit affecting parent
+			biscuit, _ := ha_get(gmem.entities, biscuit_h)
+
+			parent_ptr := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
+
+			if parent_ptr != nil
+			{
+				if .Auto_Pass in parent_ptr.behaviors
+				{
+					just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
+					if just_finished
+					{
+						pass_biscuit(biscuit.parent_entity_handle)
+					}
+				}
+
+				if .Moveable in parent_ptr.behaviors
+	   			{
+	   				if rl.IsKeyDown(.LEFT)
+	   				{
+	   					parent_ptr.vel.x = -parent_ptr.speed
+	   				}
+	   				else if rl.IsKeyDown(.RIGHT)
+	   				{
+	   					parent_ptr.vel.x = parent_ptr.speed
+	   				}
+	   				else
+	   				{
+	   					parent_ptr.vel.x = 0
+	   				}
+	   			}
+
+	   			if .Shoot_In_Direction in parent_ptr.behaviors
+	   			{
+   					biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
+
+	   				// Note(jblat): This sucks. It's because the parent switches as soon as biscuit is tossed to next parent
+	   				if biscuit_ptr.lerp_pos.timer.t >= biscuit_ptr.lerp_pos.timer.duration
+	   				{
+	   					if rl.IsKeyPressed(.SPACE)
+	   					{
+	   						root_biscuit_pos := entity_get_root_pos(biscuit_h)
+	   						biscuit_ptr.parent_entity_handle = {}
+	   						biscuit_ptr.pos = root_biscuit_pos
+			   				biscuit_ptr.lerp_pos.timer.t = biscuit_ptr.lerp_pos.timer.duration
+			   				biscuit_ptr.vel = [2]f32{
+			   					-math.cos(parent_ptr.aim_angle),
+			   					math.sin(parent_ptr.aim_angle)
+			   				}
+			   				biscuit_ptr.vel *= 3
+	   					}
+	   				}
+	   			}
+			}
+				
        	}
 
        	{ // moving
-       		entity_iter := ha_make_iter(entities)
+       		entity_iter := ha_make_iter(gmem.entities)
        		for entity, handle in ha_iter(&entity_iter)
        		{
-       			entity_ptr := ha_get_ptr(entities, handle)
+       			entity_ptr := ha_get_ptr(gmem.entities, handle)
        			entity_ptr.pos += entity_ptr.vel * frame_time
+       		}
+
+       		biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
+       		biscuit_ptr.pos += biscuit.vel * frame_time
+       	}
+
+       	{ // biscuit out of bounds?
+       		biscuit_root_collider := entity_get_root_collider(biscuit_h)
+       		is_biscuit_in_bounds := rl.CheckCollisionRecs(biscuit_root_collider, biscuit_in_bounds_region)
+       		if !is_biscuit_in_bounds
+       		{ 
+       			// just give it to someone
+       			// doesn't matter who right now
+       			biscuit.pos = [2]f32{0,0}
+       			biscuit.vel = [2]f32{0,0}
+       			entity_iter := ha_make_iter(gmem.entities)
+       			for entity, handle in ha_iter(&entity_iter)
+       			{
+       				// just give it to the first person you find
+       				if entity.tex_id == .Person
+       				{
+						biscuit.parent_entity_handle = handle
+						break
+       				}
+       			}
        		}
        	}
 
@@ -935,7 +953,7 @@ root_state_game :: proc()
         }
 
         {
-        	entity_iter := ha_make_iter(entities)
+        	entity_iter := ha_make_iter(gmem.entities)
         	for entity, handle in ha_iter(&entity_iter)
         	{
         		tex := gmem.textures[entity.tex_id]
@@ -944,7 +962,7 @@ root_state_game :: proc()
 
         		tex_width_f := f32(tex.width)
         		tex_height_f := f32(tex.height)
-        		src := rl.Rectangle {0,0, 1, 1}
+        		src := rl.Rectangle {0,0, 1, 1} // TODO: This will only work for single tile sprites
         		dst := rl.Rectangle {root_pos.x, root_pos.y, 1, 1}
 
         		biscuit_root_pos := entity_get_root_pos(biscuit_h)
@@ -983,6 +1001,26 @@ root_state_game :: proc()
         				color = rl.RED
         			}
         			rlgrid.draw_rectangle_on_grid(r, color, 32)
+        		}
+
+        		if .Shoot_In_Direction in entity.behaviors
+        		{
+        			root_entity_pos := entity_get_root_pos(handle)
+ 					// assuming entity takes up one tile
+ 					root_entity_pos_centered := root_entity_pos + 0.5
+
+ 					visual_shoot_length : f32 = 2.0
+ 					end_pos := [2]f32 { 
+ 						root_entity_pos_centered.x + math.cos(entity.aim_angle) * visual_shoot_length,
+ 						root_entity_pos_centered.y + math.sin(entity.aim_angle) * visual_shoot_length 
+ 					}
+
+ 					reticle_tex := gmem.textures[.Reticle]
+ 					ret_tex_grid_width := f32(reticle_tex.width)/32
+ 					ret_tex_grid_height := f32(reticle_tex.height)/32
+ 					src := rl.Rectangle { 0, 0, f32(reticle_tex.width)/32, f32(reticle_tex.height)/32}
+ 					dst := rl.Rectangle { end_pos.x - ret_tex_grid_width/2, end_pos.y - ret_tex_grid_height/2, f32(reticle_tex.width)/32, f32(reticle_tex.height)/32}
+ 					rlgrid.draw_grid_texture_clip_on_grid(reticle_tex, src, 32, dst, 32, 0 )
         		}
         	}
         }
@@ -1051,7 +1089,7 @@ root_state_game :: proc()
 
 
      		{
-     			entity_iter := ha_make_iter(entities)
+     			entity_iter := ha_make_iter(gmem.entities)
      			for entity, handle in ha_iter(&entity_iter)
      			{
      				if entity.veritcal_move_bounds > 0
@@ -1061,6 +1099,36 @@ root_state_game :: proc()
      				}
      				collider_r := entity_get_root_collider(handle)
      				rlgrid.draw_rectangle_on_grid(collider_r, rl.Color{0,0,255,50}, 32)
+     				
+     				if .Orbiting_Around_Parent in entity.behaviors
+     				{
+     					
+     					red_alpha := rl.RED
+     					red_alpha.a = 80
+     					green_alpha := rl.GREEN
+     					green_alpha.a = 80
+
+     					root_parent_pos := entity_get_root_pos(entity.parent_entity_handle)
+     					root_entity_pos := entity_get_root_pos(handle)
+
+     					rlgrid.draw_circle_on_grid(root_parent_pos, entity.orbiting_distance, red_alpha, 32)
+     					rlgrid.draw_arrow_on_grid(root_parent_pos, root_entity_pos, 0.1, green_alpha, 32)
+     				}
+
+     				if .Shoot_In_Direction in entity.behaviors
+     				{
+     					root_entity_pos := entity_get_root_pos(handle)
+     					// assuming entity takes up one tile
+     					root_entity_pos_centered := root_entity_pos + 0.5
+
+     					visual_shoot_length : f32 = 2.0
+     					end_pos := [2]f32 { 
+     						root_entity_pos_centered.x + math.cos(entity.aim_angle) * visual_shoot_length,
+     						root_entity_pos_centered.y + math.sin(entity.aim_angle) * visual_shoot_length 
+     					}
+
+     					rlgrid.draw_arrow_on_grid(root_entity_pos_centered, end_pos, 0.1, rl.GOLD, 32)
+     				}
      			}
      		}
 

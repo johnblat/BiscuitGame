@@ -1,6 +1,8 @@
 package rlgrid
 
 import "core:math"
+import "core:math/linalg"
+
 import rl "vendor:raylib"
 
 /**
@@ -266,3 +268,66 @@ draw_text_on_grid_with_background :: proc(
         }
     }
 }
+
+
+draw_circle_on_grid :: proc(pos : [2]f32, r : f32, color : rl.Color, grid_cell_size : f32)
+{
+    _pos := pos * grid_cell_size
+    _r := r * grid_cell_size
+    rl.DrawCircleV(_pos, _r, color)
+}
+
+
+draw_line_on_grid :: proc(start_pos : [2]f32, end_pos : [2]f32, thickness : f32, color : rl.Color, grid_cell_size : f32)
+{
+    _start_pos := start_pos * grid_cell_size
+    _end_pos := end_pos * grid_cell_size
+    _thickness := thickness * grid_cell_size
+    rl.DrawLineEx(_start_pos, _end_pos, _thickness, color)
+}
+
+
+degrees_to_radians :: proc(degrees : f32) -> f32
+{
+    radians := degrees * (math.TAU / 360.0)
+    return radians
+}
+
+radians_to_degrees :: proc(radians : f32) -> f32
+{
+    degrees := radians * (360 / math.TAU)
+    return degrees
+}
+
+
+draw_arrow_on_grid :: proc(start, end: [2]f32, thickness : f32, color : rl.Color, grid_cell_size : f32) {
+    // 1. Draw main line
+    draw_line_on_grid(start, end, thickness, color, grid_cell_size)
+
+    //, thickness, grid_cell_size 2. Direction vector
+    dir := end - start
+    // dir_norm := [2]f32{1,1}
+    dir_norm := linalg.normalize(dir)
+
+    // 3. Arrowhead angle (30 degrees in radians)
+    arrow_angle := degrees_to_radians(30.0)
+    arrow_len   : f32 = 0.3
+
+    // 4. Rotate dir by +angle
+    left := [2]f32{
+        dir_norm.x * math.cos(arrow_angle) - dir_norm.y * math.sin(arrow_angle),
+        dir_norm.x * math.sin(arrow_angle) + dir_norm.y * math.cos(arrow_angle),
+    }
+
+    // 5. Rotate dir by -angle
+    right := [2]f32{
+        dir_norm.x * math.cos(-arrow_angle) - dir_norm.y * math.sin(-arrow_angle),
+        dir_norm.x * math.sin(-arrow_angle) + dir_norm.y * math.cos(-arrow_angle),
+    }
+
+    // 6. Scale by arrow_len and draw from end
+    draw_line_on_grid(end, end - left * arrow_len, thickness, color, grid_cell_size)
+    draw_line_on_grid(end, end - right * arrow_len, thickness, color, grid_cell_size)
+}
+
+
