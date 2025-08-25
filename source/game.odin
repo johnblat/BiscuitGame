@@ -150,8 +150,8 @@ create_level_1 :: proc()
 	av2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{24, 5}, veritcal_move_bounds = 3}) // anchor for next
 
 	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	// e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Shoot_In_Direction}, aim_angle = degrees_to_radians(270)})
+	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	// e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Shoot_In_Direction}, aim_angle = degrees_to_radians(270)})
 	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
 	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 5}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
 	e5_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
@@ -272,8 +272,12 @@ Game_Memory :: struct
 
 	entities : Handle_Array(Entity, Entity_Handle),
 
+	virtual_mouse_previous : [2]f32,
+
     // VIEW
     game_render_target :                  rl.RenderTexture,
+    overlay_image : rl.Image,
+    overlay_tex : rl.Texture,
 
     // TODO(jblat): not filled with anything
     texture_sprite_sheet :                rl.Texture,
@@ -397,6 +401,7 @@ pass_biscuit :: proc(biscuit_handle : Entity_Handle)
 	biscuit := ha_get_ptr(gmem.entities, biscuit_handle)
 	biscuit_root_pos := entity_get_root_pos(biscuit_handle)
 	parent := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
+	if parent == nil do return // gtfo
 
 	next_parent_handle := parent.target_entity_handle_to_pass_to
 	biscuit.parent_entity_handle = next_parent_handle
@@ -567,6 +572,9 @@ game_init :: proc()
     	rl.UnloadImage(img)
     }
 
+    gmem.overlay_image = rl.GenImageColor(1920, 1080, rl.BLANK)
+    gmem.overlay_tex = rl.LoadTextureFromImage(gmem.overlay_image)
+
     create_level_1()
 
 }
@@ -581,7 +589,7 @@ root_state_main_menu_enter :: proc()
 root_state_game :: proc() 
 {
 
-	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 20, 20}
+	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 100, 30}
 
     if rl.IsKeyPressed(.ENTER) 
     {
@@ -677,22 +685,42 @@ root_state_game :: proc()
 
         // Update virtual mouse (clamped mouse value behind game screen)
         mouse := rl.GetMousePosition()
-        virtualMouse := [2]f32{0, 0}
-        virtualMouse.x = (mouse.x - (f32(rl.GetScreenWidth()) - (global_game_view_pixels_width * scale)) * 0.5) / scale
-        virtualMouse.y = (mouse.y - (f32(rl.GetScreenHeight()) - (global_game_view_pixels_height * scale)) * 0.5) / scale
-        virtualMouse = rl.Vector2Clamp(virtualMouse, [2]f32{0, 0}, [2]f32{global_game_view_pixels_width, global_game_view_pixels_height})
-        virtualMouse -= gmem.camera.offset
-        virtualMouse += gmem.camera.target
-        virtualMouse.x /= gmem.camera.zoom
-        virtualMouse.y /= gmem.camera.zoom
-        grid_mouse := [2]f32{virtualMouse.x / global_game_texture_grid_cell_size, virtualMouse.y / global_game_texture_grid_cell_size}
+        virtual_mouse_current := [2]f32{0, 0}
+        virtual_mouse_current.x = (mouse.x - (f32(rl.GetScreenWidth()) - (global_game_view_pixels_width * scale)) * 0.5) / scale
+        virtual_mouse_current.y = (mouse.y - (f32(rl.GetScreenHeight()) - (global_game_view_pixels_height * scale)) * 0.5) / scale
+        virtual_mouse_current = rl.Vector2Clamp(virtual_mouse_current, [2]f32{0, 0}, [2]f32{global_game_view_pixels_width, global_game_view_pixels_height})
+        virtual_mouse_current -= gmem.camera.offset
+        virtual_mouse_current += gmem.camera.target
+        virtual_mouse_current.x /= gmem.camera.zoom
+        virtual_mouse_current.y /= gmem.camera.zoom
+        grid_mouse := [2]f32{virtual_mouse_current.x / global_game_texture_grid_cell_size, virtual_mouse_current.y / global_game_texture_grid_cell_size}
 
-        if rl.IsMouseButtonPressed(.LEFT) 
-        {
-            lerp_position_start(&gmem.rectangle_lerp_position, 0.15, [2]f32{gmem.rectangle.x, gmem.rectangle.y}, grid_mouse)
+        { 
+        	// paint on the overlay
+        	overlay_rectangle := rl.Rectangle{0, 0, 1920, 1080}
+        	is_paint_cursor_on_image := rl.CheckCollisionPointRec(virtual_mouse_current, overlay_rectangle)
+        	if is_paint_cursor_on_image
+        	{
+        		if rl.IsMouseButtonDown(.LEFT)
+        		{
+        			rl.ImageDrawLine(&gmem.overlay_image, i32(gmem.virtual_mouse_previous.x), i32(gmem.virtual_mouse_previous.y) , i32(virtual_mouse_current.x), i32(virtual_mouse_current.y), rl.BLACK)
+        			rl.UpdateTexture(gmem.overlay_tex, gmem.overlay_image.data)
+        		}
+        		else if rl.IsMouseButtonDown(.RIGHT)
+        		{
+        			rl.ImageDrawPixel(&gmem.overlay_image, i32(virtual_mouse_current.x), i32(virtual_mouse_current.y), rl.BLANK)
+        			rl.UpdateTexture(gmem.overlay_tex, gmem.overlay_image.data)
+        		}
+        }
 
+        gmem.virtual_mouse_previous = virtual_mouse_current
 
         }
+
+        // if rl.IsMouseButtonPressed(.LEFT) 
+        // {
+        //     lerp_position_start(&gmem.rectangle_lerp_position, 0.15, [2]f32{gmem.rectangle.x, gmem.rectangle.y}, grid_mouse)
+        // }
 
         if gmem.rectangle_lerp_position.timer.t < gmem.rectangle_lerp_position.timer.duration 
         {
@@ -815,7 +843,7 @@ root_state_game :: proc()
 					just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
 					if just_finished
 					{
-						pass_biscuit(biscuit.parent_entity_handle)
+						pass_biscuit(biscuit_h)
 					}
 				}
 
@@ -945,6 +973,8 @@ root_state_game :: proc()
         rl.BeginMode2D(gmem.camera)
 
         rl.ClearBackground(rl.LIGHTGRAY)
+
+        rl.DrawTexture(gmem.overlay_tex, 0,0,rl.WHITE)
 
 
         
@@ -1129,6 +1159,10 @@ root_state_game :: proc()
 
      					rlgrid.draw_arrow_on_grid(root_entity_pos_centered, end_pos, 0.1, rl.GOLD, 32)
      				}
+     			}
+
+     			{ // draw in-bounds region
+     				rlgrid.draw_rectangle_lines_on_grid(biscuit_in_bounds_region,0.1, rl.RED, 32 )
      			}
      		}
 
