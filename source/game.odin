@@ -64,17 +64,18 @@ Pass_Behavior :: enum {
 }
 
 
-Entity_Id :: distinct int
+Entity_Handle :: distinct Handle
 
-Root_Entity_Id :: Entity_Id(0)
+Root_Entity_Handle :: Entity_Handle{idx = 0, gen = 0}
 
 Entity :: struct
 {
-	parent_entity_id : Entity_Id,
+	handle : Entity_Handle,
+	parent_entity_handle : Entity_Handle,
 	vel : [2]f32,
 	pos : [2]f32,
 	tex_id : Texture_Id,
-	target_entity_id_to_pass_to: Entity_Id,
+	target_entity_handle_to_pass_to: Entity_Handle,
 	lerp_pos : Lerp_Position,
 	behaviors : bit_set[Behavior],
 	speed : f32,
@@ -84,45 +85,119 @@ Entity :: struct
 	collider : rl.Rectangle,
 }
 
+entities : Handle_Array(Entity, Entity_Handle)
 
-entities := [?]Entity {
-	{ pos = [2]f32{0,0}, target_entity_id_to_pass_to = Entity_Id(1)},
-	{ pos = [2]f32{4, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(2), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{6, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(3), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{8, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(4), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{10, 5}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(5), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
-	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4},
-	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,},
-	{ pos = [2]f32{22, 6}, tex_id = .Unicycle1, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable, .Face_Biscuit}, speed = 6},
-	{ pos = [2]f32{24, 5}, veritcal_move_bounds = 3}, // anchor for next
-	{parent_entity_id = Entity_Id(12), pos = [2]f32{0, 0}, tex_id = .Shark, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 },
-	{ pos = [2]f32{26, 6}, tex_id = .Person, target_entity_id_to_pass_to=Entity_Id(1), behaviors = {.Face_Biscuit}},
-	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} },
-	// just a bunch of placeholders
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{},
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,0}, tex_id = .Rope_Ladder, },
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,1}, tex_id = .Rope_Ladder, },
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,2}, tex_id = .Rope_Ladder, },
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,3}, tex_id = .Rope_Ladder, },
-	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,4}, tex_id = .Rope_Ladder, },
+biscuit_h : Entity_Handle
+
+set_parent :: proc(entity_handle, parent_entity_handle : Entity_Handle)
+{
+	e_ptr := ha_get_ptr(entities, entity_handle)
+	e_ptr.parent_entity_handle = parent_entity_handle
 }
+
+set_target_to_pass_to :: proc(entity_handle, target_entity_handle : Entity_Handle)
+{
+	ptr := ha_get_ptr(entities, entity_handle)
+	ptr.target_entity_handle_to_pass_to = target_entity_handle
+}
+
+create_level_1 :: proc()
+{
+	ha_clear(&entities)
+	e1_h := ha_add(&entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e2_h := ha_add(&entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e3_h := ha_add(&entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e4_h := ha_add(&entities, Entity { pos = [2]f32{10, 5}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e5_h := ha_add(&entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e6_h := ha_add(&entities, Entity { pos = [2]f32{14, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e7_h := ha_add(&entities, Entity { pos = [2]f32{16, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
+	e8_h := ha_add(&entities, Entity { pos = [2]f32{20, 6}, tex_id = .Cannon,  behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,})
+	e9_h := ha_add(&entities, Entity { pos = [2]f32{22, 6}, tex_id = .Unicycle1,  behaviors = {.Moveable, .Face_Biscuit}, speed = 6})
+	e10_h := ha_add(&entities, Entity { pos = [2]f32{26, 6}, tex_id = .Person, behaviors = {.Face_Biscuit}})
+	e11_h := ha_add(&entities, Entity { pos = [2]f32{0, 0}, tex_id = .Person, behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4})
+
+	h1_h := ha_add(&entities, Entity { pos = [2]f32{0, 0}, tex_id = .Shark, behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 })
+	
+	av1_h := ha_add(&entities, Entity { pos = [2]f32{18, 4}, veritcal_move_bounds = 5}) // anchor for next entity
+	av2_h := ha_add(&entities, Entity { pos = [2]f32{24, 5}, veritcal_move_bounds = 3}) // anchor for next
+
+	set_parent(e11_h, av1_h)
+	set_parent(h1_h, av2_h)
+
+
+	biscuit_h = ha_add(&entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	set_parent(biscuit_h, e1_h)
+
+	pass_ring := [?]Entity_Handle{e1_h, e2_h, e3_h, e4_h, e5_h, e6_h, e7_h, e11_h, e8_h, e9_h, e10_h, }
+	
+	for i := 0; i < len(pass_ring); i+=1
+	{
+		next_i := (i + 1) % len(pass_ring) // treat it like a ring for now
+		this_h := pass_ring[i]
+		next_h := pass_ring[next_i]
+		set_target_to_pass_to(this_h, next_h)
+	}
+}
+
+// entities := [?]Entity {
+// 	{ pos = [2]f32{0,0}, target_entity_id_to_pass_to = Entity_Id(1)},
+// 	{ pos = [2]f32{4, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(2), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{6, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(3), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{8, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(4), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{10, 5}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(5), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{12, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(6), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{14, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(7), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{16, 6}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(9), behaviors = {.Face_Biscuit}},
+// 	{ pos = [2]f32{18, 4}, veritcal_move_bounds = 5}, // anchor for next entity
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0, 0}, tex_id = .Person, target_entity_id_to_pass_to = Entity_Id(10), behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4},
+// 	{ pos = [2]f32{20, 6}, tex_id = .Cannon, target_entity_id_to_pass_to = Entity_Id(11), behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,},
+// 	{ pos = [2]f32{22, 6}, tex_id = .Unicycle1, target_entity_id_to_pass_to = Entity_Id(14), behaviors = {.Moveable, .Face_Biscuit}, speed = 6},
+// 	{ pos = [2]f32{24, 5}, veritcal_move_bounds = 3}, // anchor for next
+// 	{parent_entity_id = Entity_Id(12), pos = [2]f32{0, 0}, tex_id = .Shark, target_entity_id_to_pass_to = Entity_Id(1), behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 },
+// 	{ pos = [2]f32{26, 6}, tex_id = .Person, target_entity_id_to_pass_to=Entity_Id(1), behaviors = {.Face_Biscuit}},
+// 	{ parent_entity_id = Entity_Id(1), pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} },
+// 	// just a bunch of placeholders
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{},
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,0}, tex_id = .Rope_Ladder, },
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,1}, tex_id = .Rope_Ladder, },
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,2}, tex_id = .Rope_Ladder, },
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,3}, tex_id = .Rope_Ladder, },
+// 	{ parent_entity_id = Entity_Id(8), pos = [2]f32{0,4}, tex_id = .Rope_Ladder, },
+// }
+
+/**
+ * Also, i was trying to think in terms of some Pass_Behaviors if that makes sense.
+
+For instance:
+- Auto-target the next entity with lerp (current): Pass directly to a target with a specified amount of time. The new target will become biscuit holder.
+- Shoot in-direction at constant speed: "shoots" the biscuit in whatever direction the entity is set to throw it in. Whatever entity that collides with it will become the new biscuit holder
+- Auto-target the next entity with constant speed: Pass directly to a target with a specified throw speed. The new target will become the biscuit holder.
+
+Then for entity behavior i was thinking there'd be something like Biscuit_Holder_Behaviors:
+- target only one entity
+- choose between multiple targets
+- aim direction
+- move self left and right
+- move self up and down
+
+IDK if that makes sense. Looking for some feedback
+so i was thinking, can we also get a "cursor" looking thing like in yoshi's island with he's throwing eggs?
+*/
+
+
 
 
 hot_script :: proc()
@@ -238,36 +313,76 @@ gmem : ^Game_Memory
 // }
 
 
-entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
+// entity_get_root_pos :: proc(id : Entity_Id) -> [2]f32
+// {
+	
+// 	entity := entities[id]
+// 	root_pos := entity.pos
+	
+// 	parent_entity_id := entity.parent_entity_id
+// 	parent_entity := entities[Root_Entity_Id]
+
+// 	if id == parent_entity_id
+// 	{
+// 		// parent is itself, so... yeah, we just treat this that its the root
+// 		return root_pos
+// 	}
+
+// 	for parent_entity_id != Entity_Id(0)
+// 	{
+// 		parent_entity = entities[parent_entity_id]
+// 		root_pos += parent_entity.pos
+// 		parent_entity_id = parent_entity.parent_entity_id
+// 	}
+
+// 	return root_pos
+// }
+
+
+entity_get_root_pos :: proc(handle : Entity_Handle) -> [2]f32
 {
 	
-	entity := entities[id]
+	entity, _ := ha_get(entities, handle)
 	root_pos := entity.pos
 	
-	parent_entity_id := entity.parent_entity_id
-	parent_entity := entities[Root_Entity_Id]
+	parent_entity_handle := entity.parent_entity_handle
+	parent_entity := Entity{}
 
-	if id == parent_entity_id
+	if handle == parent_entity_handle
 	{
 		// parent is itself, so... yeah, we just treat this that its the root
 		return root_pos
 	}
 
-	for parent_entity_id != Entity_Id(0)
+	for parent_entity_handle.idx != 0
 	{
-		parent_entity = entities[parent_entity_id]
+		parent_entity, _ = ha_get(entities, parent_entity_handle)
 		root_pos += parent_entity.pos
-		parent_entity_id = parent_entity.parent_entity_id
+		parent_entity_handle = parent_entity.parent_entity_handle
 	}
 
 	return root_pos
 }
 
 
-entity_get_root_collider :: proc(id : Entity_Id) -> rl.Rectangle
+// entity_get_root_collider :: proc(id : Entity_Id) -> rl.Rectangle
+// {
+// 	root_pos := entity_get_root_pos(id)
+// 	collider := entities[id].collider
+// 	root_collider := rl.Rectangle {
+// 		root_pos.x + collider.x,
+// 		root_pos.y + collider.y,
+// 		collider.width,
+// 		collider.height,
+// 	}
+// 	return root_collider
+// }
+
+entity_get_root_collider :: proc(handle : Entity_Handle) -> rl.Rectangle
 {
-	root_pos := entity_get_root_pos(id)
-	collider := entities[id].collider
+	root_pos := entity_get_root_pos(handle)
+	e, _ := ha_get(entities, handle)
+	collider := e.collider
 	root_collider := rl.Rectangle {
 		root_pos.x + collider.x,
 		root_pos.y + collider.y,
@@ -277,44 +392,77 @@ entity_get_root_collider :: proc(id : Entity_Id) -> rl.Rectangle
 	return root_collider
 }
 
-entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_id : Entity_Id) -> [2]f32
+// entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_id : Entity_Id) -> [2]f32
+// {
+// 	relative_root_pos := entity_get_root_pos(relative_to_id)
+//     return root_pos - relative_root_pos
+// }
+
+entity_root_pos_to_relative_pos :: proc(root_pos : [2]f32, relative_to_handle : Entity_Handle) -> [2]f32
 {
-	relative_root_pos := entity_get_root_pos(relative_to_id)
+	relative_root_pos := entity_get_root_pos(relative_to_handle)
     return root_pos - relative_root_pos
 }
 
-entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Id
-{
-	for entity, id in entities
-    {
-    	e_id := Entity_Id(id)
-    	if behaviors == entity.behaviors
-    	{
-    		return e_id
-    	}
-    }
+// entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Id
+// {
+// 	for entity, id in entities
+//     {
+//     	e_id := Entity_Id(id)
+//     	if behaviors == entity.behaviors
+//     	{
+//     		return e_id
+//     	}
+//     }
 
-    return Entity_Id(0)
+//     return Entity_Id(0)
+// }
+
+entity_find_first_matching_behavior :: proc(behaviors : bit_set[Behavior]) -> Entity_Handle
+{
+	entity_iter := ha_make_iter(entities)
+	for entity, handle in ha_iter(&entity_iter)
+	{
+		if behaviors == entity.behaviors
+		{
+			return handle
+		}
+	}
+	
+    return Entity_Handle{}
 }
 
 
-pass_biscuit :: proc(biscuit_id : Entity_Id)
-{
-	biscuit := &entities[biscuit_id]
-	biscuit_root_pos := entity_get_root_pos(biscuit_id)
-	parent := entities[biscuit.parent_entity_id]
+// pass_biscuit :: proc(biscuit_id : Entity_Id)
+// {
+// 	biscuit := &entities[biscuit_id]
+// 	biscuit_root_pos := entity_get_root_pos(biscuit_id)
+// 	parent := entities[biscuit.parent_entity_id]
 
-	next_parent := parent.target_entity_id_to_pass_to
-	biscuit.parent_entity_id = next_parent
-	biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+// 	next_parent := parent.target_entity_id_to_pass_to
+// 	biscuit.parent_entity_id = next_parent
+// 	biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_id)
+
+// 	lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
+
+// 	next_parent_ref := &entities[next_parent]
+// 	if .Auto_Pass in next_parent_ref.behaviors
+// 	{
+// 		// next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
+// 	}
+// }
+
+pass_biscuit :: proc(biscuit_handle : Entity_Handle)
+{
+	biscuit := ha_get_ptr(entities, biscuit_handle)
+	biscuit_root_pos := entity_get_root_pos(biscuit_handle)
+	parent := ha_get_ptr(entities, biscuit.parent_entity_handle)
+
+	next_parent_handle := parent.target_entity_handle_to_pass_to
+	biscuit.parent_entity_handle = next_parent_handle
+	biscuit.pos = entity_root_pos_to_relative_pos(biscuit_root_pos, biscuit.parent_entity_handle)
 
 	lerp_position_start(&biscuit.lerp_pos, 0.3, biscuit.pos, [2]f32{0,0})
-
-	next_parent_ref := &entities[next_parent]
-	if .Auto_Pass in next_parent_ref.behaviors
-	{
-		// next_parent_ref.wait_timer = next_parent_ref.wait_timer_duration
-	}
 }
 
 
@@ -476,6 +624,8 @@ game_init :: proc()
     	rl.UnloadImage(img)
     }
 
+    create_level_1()
+
 }
 
 
@@ -608,8 +758,8 @@ root_state_game :: proc()
 
        	biscuit_id := entity_find_first_matching_behavior({.Is_Biscuit})
 
-   		biscuit := &entities[biscuit_id]
-   		biscuit_parent := entities[biscuit.parent_entity_id]
+   		biscuit := ha_get_ptr(entities, biscuit_h)
+   		biscuit_parent, _ := ha_get(entities, biscuit.parent_entity_handle)
 
    		can_manually_pass_biscuit := rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration && !(.Auto_Pass in biscuit_parent.behaviors)
        	if can_manually_pass_biscuit
@@ -623,31 +773,30 @@ root_state_game :: proc()
        		biscuit.pos = new_pos
        		if just_finished
        		{
-       			parent := &entities[biscuit.parent_entity_id]
-       			if .Auto_Pass in parent.behaviors
+       			parent_ptr := ha_get_ptr(entities, biscuit.parent_entity_handle)
+       			if .Auto_Pass in parent_ptr.behaviors
        			{
-					parent.wait_timer = parent.wait_timer_duration       				
+					parent_ptr.wait_timer = parent_ptr.wait_timer_duration       				
        			}
        		}
        	}
 
        	{ // biscuit collides with things
-       		for entity, i in entities
+       		entity_iter := ha_make_iter(entities)
+       		for entity, handle in ha_iter(&entity_iter)
        		{
-       			e_id := Entity_Id(i)
-       			if e_id == biscuit_id do continue
+       			if handle == biscuit_h do continue
        			if .Hazard in entity.behaviors
        			{
-
    					biscuit_root_collider := entity_get_root_collider(biscuit_id)
-   					hazard_root_collider := entity_get_root_collider(e_id)
+   					hazard_root_collider := entity_get_root_collider(handle)
        				is_biscuit_colliding_with_hazard := rl.CheckCollisionRecs(biscuit_root_collider, hazard_root_collider)
        				if is_biscuit_colliding_with_hazard
        				{
        					biscuit_root_pos := entity_get_root_pos(biscuit_id)
        					// Note(jblat): This aint good, this just some way to represent that a hazard got in the way of the biscuit
-       					biscuit_relative_to_return_parent := entity_root_pos_to_relative_pos(biscuit_root_pos, entity.target_entity_id_to_pass_to)
-       					biscuit.parent_entity_id = entity.target_entity_id_to_pass_to
+       					biscuit_relative_to_return_parent := entity_root_pos_to_relative_pos(biscuit_root_pos, entity.target_entity_handle_to_pass_to)
+       					biscuit.parent_entity_handle = entity.target_entity_handle_to_pass_to
        					biscuit.pos = [2]f32{0,0}
        					biscuit.lerp_pos.timer.t = biscuit.lerp_pos.timer.duration      				
    					}
@@ -656,60 +805,62 @@ root_state_game :: proc()
        	}
 
        	{ // general behvaior updates
-       		for &entity in entities
+       		entity_iter := ha_make_iter(entities)
+       		for entity, handle in ha_iter(&entity_iter)
        		{
+       			entity_ptr := ha_get_ptr(entities, handle)
        			if .Move_Veritcally_On_Parent in entity.behaviors
        			{
    					min_y : f32 = 0
-   					parent_entity := entities[entity.parent_entity_id]
+   					parent_entity, _ := ha_get(entities, entity.parent_entity_handle)
    					max_y := parent_entity.veritcal_move_bounds
 
    					if entity.pos.y >= max_y
    					{
-   						entity.vel.y = -entity.speed
+   						entity_ptr.vel.y = -entity.speed
    					}
    					else if entity.pos.y <= min_y
    					{
-   						entity.vel.y = entity.speed
+   						entity_ptr.vel.y = entity.speed
    					}
        			}
        			if .Moveable in entity.behaviors
        			{
        				// set this here so that only below if an biscuit is on the entity will it set the velocity
-       				entity.vel = 0
+       				entity_ptr.vel = 0
        			}
        		}
        	}
 
        	{ // biscuit affecting parent
-       		for entity, i in entities
+       		entity_iter := ha_make_iter(entities)
+       		for entity, handle in ha_iter(&entity_iter)
        		{
-       			e_id := Entity_Id(i)
        			if .Is_Biscuit in entity.behaviors
        			{
-       				parent := &entities[entity.parent_entity_id]
-       				if .Auto_Pass in parent.behaviors
+       				parent_ptr := ha_get_ptr(entities, entity.parent_entity_handle)
+       				if .Auto_Pass in parent_ptr.behaviors
        				{
        					
-       					just_finished := countdown_and_notify_just_finished(&parent.wait_timer, frame_time)
+       					just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
        					if just_finished
        					{
-       						pass_biscuit(e_id)
+       						pass_biscuit(handle)
        					}
        				}
-       				if .Moveable in parent.behaviors
+       				if .Moveable in parent_ptr.behaviors
 	       			{
 	       				if rl.IsKeyDown(.LEFT)
 	       				{
-	       					parent.vel.x = -parent.speed
+	       					parent_ptr.vel.x = -parent_ptr.speed
 	       				}
 	       				else if rl.IsKeyDown(.RIGHT)
 	       				{
-	       					parent.vel.x = parent.speed
+	       					parent_ptr.vel.x = parent_ptr.speed
 	       				}
 	       				else
 	       				{
-	       					parent.vel.x = 0
+	       					parent_ptr.vel.x = 0
 	       				}
 	       			}
        			}
@@ -717,10 +868,11 @@ root_state_game :: proc()
        	}
 
        	{ // moving
-       		for &entity in entities
+       		entity_iter := ha_make_iter(entities)
+       		for entity, handle in ha_iter(&entity_iter)
        		{
-       			
-       			entity.pos += entity.vel * frame_time
+       			entity_ptr := ha_get_ptr(entities, handle)
+       			entity_ptr.pos += entity_ptr.vel * frame_time
        		}
        	}
 
@@ -764,17 +916,12 @@ root_state_game :: proc()
         gmem.camera.offset.y += global_game_view_pixels_height/2
         gmem.camera.zoom = gmem.dbg_camera_zoom
 
-        for entity, id in entities
-        {
-        	e_id := Entity_Id(id)
-        	if .Is_Biscuit in entity.behaviors
-        	{
-        		biscuit_root_pos := entity_get_root_pos(e_id)
-        		actual_pos := rlgrid.get_actual_pos(biscuit_root_pos, 32)
-        		gmem.camera.target = actual_pos 
-        	}
-        }
 
+		biscuit_root_pos := entity_get_root_pos(biscuit_h)
+		actual_pos := rlgrid.get_actual_pos(biscuit_root_pos, 32)
+		gmem.camera.target = actual_pos 
+        	
+        
         rl.BeginTextureMode(gmem.game_render_target)
 
         rl.BeginMode2D(gmem.camera)
@@ -788,40 +935,19 @@ root_state_game :: proc()
         }
 
         {
-        	for entity in entities
+        	entity_iter := ha_make_iter(entities)
+        	for entity, handle in ha_iter(&entity_iter)
         	{
         		tex := gmem.textures[entity.tex_id]
         		
-        		root_pos := entity.pos
-        		
-        		parent_entity_id := entity.parent_entity_id
-        		parent_entity := entities[Root_Entity_Id]
-
-        		for parent_entity_id != Entity_Id(0)
-        		{
-        			parent_entity = entities[parent_entity_id]
-        			root_pos += parent_entity.pos
-        			parent_entity_id = parent_entity.parent_entity_id
-        		}
+        		root_pos := entity_get_root_pos(handle)
 
         		tex_width_f := f32(tex.width)
         		tex_height_f := f32(tex.height)
         		src := rl.Rectangle {0,0, 1, 1}
         		dst := rl.Rectangle {root_pos.x, root_pos.y, 1, 1}
 
-        		biscuit_id := Entity_Id(0)
-        		for entity, id in entities
-        		{ // find first biscuit
-        			e_id := Entity_Id(id)
-
-        			if .Is_Biscuit in entity.behaviors
-        			{
-        				biscuit_id = e_id
-        				break
-        			}
-        		}
-
-        		biscuit_root_pos := entity_get_root_pos(biscuit_id)
+        		biscuit_root_pos := entity_get_root_pos(biscuit_h)
         		biscuit_is_to_left_of_this_entity := biscuit_root_pos.x < root_pos.x
         		biscuit_is_to_right_of_this_entity := biscuit_root_pos.x > root_pos.x
 
@@ -925,17 +1051,15 @@ root_state_game :: proc()
 
 
      		{
-     			for entity, i in entities
+     			entity_iter := ha_make_iter(entities)
+     			for entity, handle in ha_iter(&entity_iter)
      			{
-     				e_id := Entity_Id(i)
      				if entity.veritcal_move_bounds > 0
      				{
      					r := rl.Rectangle { entity.pos.x, entity.pos.y, 1, entity.veritcal_move_bounds}
      					rlgrid.draw_rectangle_on_grid(r, rl.Color{255,0,0,50}, 32)
      				}
-     				root_pos := entity_get_root_pos(e_id)
-     				collider_root_pos := root_pos + [2]f32{entity.collider.x, entity.collider.y}
-     				collider_r := rl.Rectangle{collider_root_pos.x, collider_root_pos.y, entity.collider.width, entity.collider.height}
+     				collider_r := entity_get_root_collider(handle)
      				rlgrid.draw_rectangle_on_grid(collider_r, rl.Color{0,0,255,50}, 32)
      			}
      		}
