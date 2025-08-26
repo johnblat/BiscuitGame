@@ -222,6 +222,10 @@ radians_to_degrees :: proc(radians : f32) -> f32
 
 set_parent :: proc(entity_handle, parent_entity_handle : Entity_Handle)
 {
+	if entity_handle == {} 
+	{
+		return	// get out
+	}  
 	e_ptr := ha_get_ptr(gmem.entities, entity_handle)
 	e_ptr.parent_entity_handle = parent_entity_handle
 }
@@ -229,6 +233,7 @@ set_parent :: proc(entity_handle, parent_entity_handle : Entity_Handle)
 
 set_next_entity :: proc(entity_handle, next_entity_handle : Entity_Handle)
 {
+	if entity_handle == {} do return
 	ptr := ha_get_ptr(gmem.entities, entity_handle)
 	ptr.next_entity_handle = next_entity_handle
 }
@@ -361,9 +366,52 @@ create_level_1 :: proc()
 }
 
 
+
+/**
+ * This will take in a cursor as the starting point to start placing entities.
+ * It will place the first entity at the starting point and then after creating an entity, it will move the next entity along the vector.
+ * At the end, it will return the position of the cursor where the next entity would go
+ */
+create_entities_with_cursor_and_set_next :: proc(cursor_start : [2]f32, previous_handle : Entity_Handle, vector_to_each_new_entity_pos : [2]f32, entities : ..Entity) -> (end_cursor : [2]f32, start_handle : Entity_Handle, end_handle : Entity_Handle)
+{
+	if len(entities) == 0 do return cursor_start, {}, {}
+
+	cursor := cursor_start
+
+	entity_current := entities[0]
+	entity_current.pos = cursor
+	current_handle := ha_add(&gmem.entities, entity_current)
+	start_handle = current_handle
+	set_next_entity(previous_handle, start_handle)
+	
+	cursor += vector_to_each_new_entity_pos
+
+	entity_previous := entity_current
+	previous_handle := current_handle
+
+	for i in 1..<len(entities)
+	{
+		entity_current = entities[i]
+		entity_current.pos = cursor
+		cursor += vector_to_each_new_entity_pos
+
+		current_handle = ha_add(&gmem.entities, entity_current)
+		set_next_entity(previous_handle, current_handle )
+		previous_handle = current_handle
+
+	}
+
+	end_handle = current_handle
+
+	return cursor, start_handle, end_handle
+}
+
+
 create_level_2 :: proc()
 {
 	ha_clear(&gmem.entities)
+
+
 
 	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,}) // 2
 	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
@@ -410,6 +458,56 @@ create_level_2 :: proc()
 
 }
 
+
+create_level_3 :: proc()
+{
+	ha_clear(&gmem.entities)
+
+	start_cursor := [2]f32{2,6}
+	cursor := start_cursor
+
+	start_handle, end_handle : Entity_Handle
+	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+		)
+
+	cursor.x += 2
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		)
+	cursor.x += 2
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
+			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+		)
+
+	cursor.x += 2
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		)
+	cursor.x += 2
+
+	
+
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	set_parent(biscuit_h, start_handle)
+	gmem.first_biscuit_parent_h = start_handle
+
+}
 
 // GAMEPLAY 
 
@@ -476,7 +574,7 @@ game_memory_ptr :: proc() -> rawptr
 game_hot_reload :: proc(mem : rawptr) 
 {
     gmem = (^Game_Memory)(mem)
-    create_level_2()
+    create_level_3()
 }
 
 
@@ -630,7 +728,7 @@ game_init :: proc()
     gmem.ready_sound = rl.LoadSound("./assets/ready.wav")
     rl.SetSoundVolume(gmem.ready_sound, 6.0)
 
-    create_level_2()
+    create_level_3()
 
 }
 
