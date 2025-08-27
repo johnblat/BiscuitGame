@@ -1175,6 +1175,9 @@ root_state_game :: proc()
    						{
    							rl.PlaySound(gmem.ready_sound)
    						}
+   						// NOTE(jblat): we may want to ensure we set the parent to the current entity here
+   						// as otherwise there's nothing guaranteeing the biscuit is on the current musical entity
+   						// it could be on any entity
    						pass_biscuit(biscuit_h)
    					}
        			}
@@ -1187,16 +1190,6 @@ root_state_game :: proc()
        	}
 
        	{ // check for musical hits on input
-
-       		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
-
-       		// these are not exact. Just a rough frame estimate. We pretty much know we running at 60FPS
-       		early_timing_window_ms_i := i32(track_time_ms_current) - i32(sec_to_ms(frame_time) * 5) // roughly 10 frames
-       		early_timing_window_ms_i = max(early_timing_window_ms_i, 0)
-       		early_timing_window_ms := u64(early_timing_window_ms_i)
-       		late_timing_window_ms := track_time_ms_current + u64(sec_to_ms(frame_time) * 5) // roughly 10 frames
-
-
 
        		/**
        		 *                     current track time
@@ -1212,13 +1205,25 @@ root_state_game :: proc()
        		 *                   within hit window
        		 */
 
+       		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
+
+       		early_timing_window_ms_i := i32(track_time_ms_current) - i32(sec_to_ms(frame_time) * 5) // roughly 10 frames
+       		early_timing_window_ms_i = max(early_timing_window_ms_i, 0)
+       		early_timing_window_ms := u64(early_timing_window_ms_i)
+       		late_timing_window_ms := track_time_ms_current + u64(sec_to_ms(frame_time) * 5) // roughly 10 frames
+
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ms : u64 = 0
 
-       		// just using H for now for testing
-       		// supposed to be space
        		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.SPACE)
 
+
+       		/**
+       		 * Loop looks like 
+       		 * 
+       		 *  entity.next -> entity.next -> entity.next -> entity.next -> ...
+       		 * 
+       		 */
        		for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
        		{
        			entity_track_time_ms += rhythm_get_ms_from_ticks(entity_current.delta_time_in_music_ticks, 160.0)
@@ -1226,6 +1231,16 @@ root_state_game :: proc()
        			is_entity_after_hit_window := late_timing_window_ms < entity_track_time_ms 
        			if is_entity_after_hit_window
        			{
+       				/**   early hit window
+       				 *     |        
+       				 *     |           
+       				 *     |       late hit window
+       				 *     |           |
+       				 * ----------------------e--------------
+       				 *                       |
+       				 *                 current entity
+       				 *                 ^^^^ in future so just get out
+       				 */
        				break
        			}
 
