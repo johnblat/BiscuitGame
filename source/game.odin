@@ -22,6 +22,8 @@ bytes_png_georgie := #load("../assets/georgie.png")
 bytes_png_reticle := #load("../assets/reticle.png")
 bytes_png_bumper_circus := #load("../assets/bumper_circus.png")
 bytes_png_bumper_unicycle := #load("../assets/bumper_unicycle.png")
+bytes_png_statuses := #load("../assets/status.png")
+bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -132,7 +134,17 @@ Texture_Id :: enum {
 	Reticle,
 	Bumper_Circus,
 	Bumper_Unicycle,
+	Statuses_Sprite_Sheet,
+	Spacebar_Sprite_Sheet,
 }
+
+
+Sprite_Data :: union 
+{
+	Texture_Id,
+	Sprite_Clip_Name,
+}
+
 
 Behavior :: enum {
 	Face_Biscuit,
@@ -162,6 +174,7 @@ Entity_Handle :: distinct Handle
 
 Root_Entity_Handle :: Entity_Handle{idx = 0, gen = 0}
 
+
 Entity :: struct
 {
 	handle : Entity_Handle,
@@ -171,7 +184,8 @@ Entity :: struct
 	pos : [2]f32,
 	speed : f32,
 	collider : rl.Rectangle,
-	tex_id : Texture_Id,
+
+	sprite_data : Sprite_Data,
 
 	next_entity_handle: Entity_Handle,
 
@@ -227,7 +241,27 @@ gmem : ^Game_Memory
 
 biscuit_h : Entity_Handle
 
+
+// TIME
+
+
+sec_to_ms :: proc(sec : f32) -> u64
+{
+	ms_f := sec * 1000
+	ms := u64(ms_f)
+	return ms
+}
+
+
+ms_to_sec :: proc(ms : u64) -> f32
+{
+	sec := f32(ms) / 1000.0
+	return sec
+}
+
+
 // MATH
+
 
 degrees_to_radians :: proc(degrees : f32) -> f32
 {
@@ -340,11 +374,12 @@ create_entity_ring :: proc(handles_ordered : []Entity_Handle)
 }
 
 
-create_entity :: proc(entity : Entity)
+create_entity :: proc(entity : Entity) -> Entity_Handle
 {	
 	new_handle := ha_add(&gmem.entities, entity)
 	ptr := ha_get_ptr(gmem.entities, new_handle)
 	ptr.handle = new_handle
+	return new_handle
 }
 
 
@@ -356,40 +391,40 @@ create_level_1 :: proc()
 	ha_clear(&gmem.entities)
 
 	av1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{18, 4}, veritcal_move_bounds = 5}) // anchor for next entity
-	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,0}, tex_id = .Rope_Ladder, })
-	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,1}, tex_id = .Rope_Ladder, })
-	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,2}, tex_id = .Rope_Ladder, })
-	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,3}, tex_id = .Rope_Ladder, })
-	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,4}, tex_id = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,0}, sprite_data = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,1}, sprite_data = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,2}, sprite_data = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,3}, sprite_data = .Rope_Ladder, })
+	ha_add(&gmem.entities, Entity{ parent_entity_handle = av1_h, pos = [2]f32{0,4}, sprite_data = .Rope_Ladder, })
 
 	av2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{24, 5}, veritcal_move_bounds = 3}) // anchor for next
 
-	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	// e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Shoot_In_Direction}, aim_angle = degrees_to_radians(270)})
-	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 5}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e5_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e6_h := ha_add(&gmem.entities, Entity { pos = [2]f32{14, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e7_h := ha_add(&gmem.entities, Entity { pos = [2]f32{16, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit}})
-	e8_h := ha_add(&gmem.entities, Entity { pos = [2]f32{20, 6}, tex_id = .Cannon,  behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,})
-	e9_h := ha_add(&gmem.entities, Entity { pos = [2]f32{22, 6}, tex_id = .Unicycle1,  behaviors = {.Moveable, .Face_Biscuit}, speed = 6})
-	e10_h := ha_add(&gmem.entities, Entity { pos = [2]f32{26, 6}, tex_id = .Person, behaviors = {.Face_Biscuit}})
-	e11_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, tex_id = .Person, behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4})
+	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	// e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Shoot_In_Direction}, aim_angle = degrees_to_radians(270)})
+	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 5}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e5_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e6_h := ha_add(&gmem.entities, Entity { pos = [2]f32{14, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e7_h := ha_add(&gmem.entities, Entity { pos = [2]f32{16, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit}})
+	e8_h := ha_add(&gmem.entities, Entity { pos = [2]f32{20, 6}, sprite_data = .Cannon,  behaviors = {.Auto_Pass, .Face_Biscuit}, wait_timer_duration = 0.25,})
+	e9_h := ha_add(&gmem.entities, Entity { pos = [2]f32{22, 6}, sprite_data = .Unicycle1,  behaviors = {.Moveable, .Face_Biscuit}, speed = 6})
+	e10_h := ha_add(&gmem.entities, Entity { pos = [2]f32{26, 6}, sprite_data = .Person, behaviors = {.Face_Biscuit}})
+	e11_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, sprite_data = .Person, behaviors = {.Face_Biscuit, .Move_Veritcally_On_Parent}, speed = 4})
 
-	h1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, tex_id = .Shark, behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 })
+	h1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0, 0}, sprite_data = .Shark, behaviors = {.Hazard, .Move_Veritcally_On_Parent, .Flip_V}, collider = rl.Rectangle{0,0,1,1}, speed = 3 })
 	set_next_entity(h1_h, e1_h)
-	g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, tex_id = .Georgie, behaviors = {.Orbiting_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3})
+	g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, sprite_data = .Georgie, behaviors = {.Orbiting_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3})
 	set_parent(g_h, e1_h)
 
-	swingin_g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, tex_id = .Georgie, behaviors = {.Orbiting_Around_Parent, .Swing_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3, swing_angle_end = degrees_to_radians(180 - 10), swing_angle_start = degrees_to_radians(0 + 10)})
+	swingin_g_h := ha_add(&gmem.entities, Entity { pos = [2]f32{0,0}, sprite_data = .Georgie, behaviors = {.Orbiting_Around_Parent, .Swing_Around_Parent}, speed = 2, orbiting_dir = +1, orbiting_distance = 3, swing_angle_end = degrees_to_radians(180 - 10), swing_angle_start = degrees_to_radians(0 + 10)})
 	set_parent(swingin_g_h, e4_h)
 
 	set_parent(e11_h, av1_h)
 	set_parent(h1_h, av2_h)
 
 
-	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, sprite_data =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, e1_h)
 	gmem.first_biscuit_parent_h = e1_h
 
@@ -429,7 +464,7 @@ create_entities_with_cursor_and_set_next :: proc(cursor_start : [2]f32, previous
 		entity_current.pos = cursor
 		cursor += vector_to_each_new_entity_pos
 
-		current_handle = ha_add(&gmem.entities, entity_current)
+		current_handle = create_entity(entity_current)
 		set_next_entity(previous_handle, current_handle )
 		previous_handle = current_handle
 
@@ -447,39 +482,39 @@ create_level_2 :: proc()
 
 
 
-	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,}) // 2
-	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
-	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
-	e6_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e7_h := ha_add(&gmem.entities, Entity { pos = [2]f32{14, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96*2}) // 4
+	e1_h := ha_add(&gmem.entities, Entity { pos = [2]f32{4, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,}) // 2
+	e2_h := ha_add(&gmem.entities, Entity { pos = [2]f32{6, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
+	e3_h := ha_add(&gmem.entities, Entity { pos = [2]f32{8, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e4_h := ha_add(&gmem.entities, Entity { pos = [2]f32{10, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
+	e6_h := ha_add(&gmem.entities, Entity { pos = [2]f32{12, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e7_h := ha_add(&gmem.entities, Entity { pos = [2]f32{14, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96*2}) // 4
 	
 
-	e10_h := ha_add(&gmem.entities, Entity { pos = [2]f32{18, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e12_h := ha_add(&gmem.entities, Entity { pos = [2]f32{20, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 3
-	e13_h := ha_add(&gmem.entities, Entity { pos = [2]f32{22, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 4
+	e10_h := ha_add(&gmem.entities, Entity { pos = [2]f32{18, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e12_h := ha_add(&gmem.entities, Entity { pos = [2]f32{20, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 3
+	e13_h := ha_add(&gmem.entities, Entity { pos = [2]f32{22, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 4
 
-	e14_h := ha_add(&gmem.entities, Entity { pos = [2]f32{24, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e16_h := ha_add(&gmem.entities, Entity { pos = [2]f32{26, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
-	e17_h := ha_add(&gmem.entities, Entity { pos = [2]f32{28, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e18_h := ha_add(&gmem.entities, Entity { pos = [2]f32{30, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
-	e19_h := ha_add(&gmem.entities, Entity { pos = [2]f32{32, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e20_h := ha_add(&gmem.entities, Entity { pos = [2]f32{34, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96*2}) // 4
-
-
-	e21_h := ha_add(&gmem.entities, Entity { pos = [2]f32{38, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
-	e22_h := ha_add(&gmem.entities, Entity { pos = [2]f32{40, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 4
-	e23_h := ha_add(&gmem.entities, Entity { pos = [2]f32{42, 6}, tex_id = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96})
-
-	e30_h := ha_add(&gmem.entities, Entity { pos = [2]f32{44, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
-	e31_h := ha_add(&gmem.entities, Entity { pos = [2]f32{46, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
-	e32_h := ha_add(&gmem.entities, Entity { pos = [2]f32{48, 4}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
-	e34_h := ha_add(&gmem.entities, Entity { pos = [2]f32{48, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
-	e35_h := ha_add(&gmem.entities, Entity { pos = [2]f32{50, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
-	e36_h := ha_add(&gmem.entities, Entity { pos = [2]f32{52, 6}, tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e14_h := ha_add(&gmem.entities, Entity { pos = [2]f32{24, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e16_h := ha_add(&gmem.entities, Entity { pos = [2]f32{26, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
+	e17_h := ha_add(&gmem.entities, Entity { pos = [2]f32{28, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e18_h := ha_add(&gmem.entities, Entity { pos = [2]f32{30, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 4
+	e19_h := ha_add(&gmem.entities, Entity { pos = [2]f32{32, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e20_h := ha_add(&gmem.entities, Entity { pos = [2]f32{34, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96*2}) // 4
 
 
-	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	e21_h := ha_add(&gmem.entities, Entity { pos = [2]f32{38, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}) // 2
+	e22_h := ha_add(&gmem.entities, Entity { pos = [2]f32{40, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96}) // 4
+	e23_h := ha_add(&gmem.entities, Entity { pos = [2]f32{42, 6}, sprite_data = .Unicycle1,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96})
+
+	e30_h := ha_add(&gmem.entities, Entity { pos = [2]f32{44, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e31_h := ha_add(&gmem.entities, Entity { pos = [2]f32{46, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e32_h := ha_add(&gmem.entities, Entity { pos = [2]f32{48, 4}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e34_h := ha_add(&gmem.entities, Entity { pos = [2]f32{48, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e35_h := ha_add(&gmem.entities, Entity { pos = [2]f32{50, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+	e36_h := ha_add(&gmem.entities, Entity { pos = [2]f32{52, 6}, sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2})
+
+
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = e1_h, pos = [2]f32{0,0}, sprite_data =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, e1_h)
 	gmem.first_biscuit_parent_h = e1_h
 
@@ -505,43 +540,43 @@ create_level_3 :: proc()
 
 	start_handle, end_handle : Entity_Handle
 	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 		)
 
 	cursor.x += 2
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
 		)
 	cursor.x += 2
 
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
-			 Entity { tex_id = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, .Play_Sound_Event}, delta_time_in_music_ticks = 96*2 },
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 		)
 
 	cursor.x += 2
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { tex_id = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
 		)
 	cursor.x += 2
 
 	
 	set_next_entity(end_handle, start_handle) // make ring
 
-	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, sprite_data =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, start_handle)
 	gmem.first_biscuit_parent_h = start_handle
 
@@ -748,6 +783,8 @@ game_init :: proc()
     	.Reticle = bytes_png_reticle[:],
     	.Bumper_Circus = bytes_png_bumper_circus[:],
     	.Bumper_Unicycle = bytes_png_bumper_unicycle[:],
+    	.Statuses_Sprite_Sheet = bytes_png_statuses[:],
+    	.Spacebar_Sprite_Sheet = bytes_png_spacebar_spritesheet[:],
 
     }
 
@@ -759,7 +796,7 @@ game_init :: proc()
     	rl.UnloadImage(img)
     }
 
-    gmem.overlay_image = rl.GenImageColor(1920, 1080, rl.BLANK)
+    gmem.overlay_image = rl.GenImageColor(5, 5, rl.BLANK)
     gmem.overlay_tex = rl.LoadTextureFromImage(gmem.overlay_image)
 
     gmem.music = rl.LoadMusicStream("./assets/monkey-for-john.mp3")
@@ -786,7 +823,15 @@ root_state_main_menu_enter :: proc()
 
 root_state_game :: proc() 
 {
-
+	length_of_track := rl.GetMusicTimeLength(gmem.music)
+	current_time_in_track := rl.GetMusicTimePlayed(gmem.music)
+	music_is_over := current_time_in_track >= length_of_track
+	if music_is_over
+	{
+		// handle this case better
+		gmem.track_time_ms_previous = 0
+		create_level_3()
+	}
 	rl.UpdateMusicStream(gmem.music)
 	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 100, 30}
 
@@ -798,6 +843,15 @@ root_state_game :: proc()
     if rl.IsKeyPressed(.BACKSPACE) 
     {
         gmem.pause = !gmem.pause
+    }
+
+    if rl.IsKeyPressed(.R)
+    {
+    	// reset
+    	// rl.StopMusicStream(gmem.music)
+    	gmem.track_time_ms_previous = 0
+    	create_level_3()
+    	// rl.PlayMusicStream(gmem.music)
     }
 
     skip_next_frame := false
@@ -933,7 +987,7 @@ root_state_game :: proc()
    		biscuit := ha_get_ptr(gmem.entities, biscuit_h)
    		biscuit_parent, _ := ha_get(gmem.entities, biscuit.parent_entity_handle)
 
-   		can_manually_pass_biscuit := rl.IsKeyPressed(.SPACE) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration && !(.Auto_Pass in biscuit_parent.behaviors)
+   		can_manually_pass_biscuit := rl.IsKeyPressed(.H) && biscuit.lerp_pos.timer.t >= biscuit.lerp_pos.timer.duration && !(.Auto_Pass in biscuit_parent.behaviors)
        	if can_manually_pass_biscuit
        	{
        		if !(.Shoot_In_Direction in biscuit_parent.behaviors)
@@ -1137,54 +1191,73 @@ root_state_game :: proc()
        		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
 
        		// these are not exact. Just a rough frame estimate. We pretty much know we running at 60FPS
-       		early_timing_window_ms := u64(frame_time * 10) // roughly 10 frames
-       		late_timing_window_ms := u64(frame_time * 10) // roughly 10 frames
+       		early_timing_window_ms_i := i32(track_time_ms_current) - i32(sec_to_ms(frame_time) * 5) // roughly 10 frames
+       		early_timing_window_ms_i = max(early_timing_window_ms_i, 0)
+       		early_timing_window_ms := u64(early_timing_window_ms_i)
+       		late_timing_window_ms := track_time_ms_current + u64(sec_to_ms(frame_time) * 5) // roughly 10 frames
+
+
+
+       		/**
+       		 *                     current track time
+       		 *        early_hit_window     |            late hit window
+       		 * 				|              |             |
+       		 		-----------------------------------------------
+       		 *          e             e          |               e
+       		 *          |             |          |               |
+       		 *   entity track time    |          |               |
+       		 *    will miss if        |       hit time           |
+       		 *    not hit yet         |                    future entity track time
+       		 *                        |                    outside of window
+       		 *                   within hit window
+       		 */
 
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ms : u64 = 0
 
        		// just using H for now for testing
        		// supposed to be space
-       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.H)
+       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.SPACE)
 
        		for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
        		{
        			entity_track_time_ms += rhythm_get_ms_from_ticks(entity_current.delta_time_in_music_ticks, 160.0)
 
+       			is_entity_after_hit_window := late_timing_window_ms < entity_track_time_ms 
+       			if is_entity_after_hit_window
+       			{
+       				break
+       			}
+
        			if .Music_Event in entity_current.behaviors
        			{
-       				is_entity_current_within_hit_window := false
-
-   					if early_timing_window_ms <= track_time_ms_current
-   					{
-   						is_entity_current_within_hit_window = entity_track_time_ms >= early_timing_window_ms && entity_track_time_ms < late_timing_window_ms		
-   					}
-   					else
-   					{
-   				    	is_entity_current_within_hit_window = entity_track_time_ms >= early_timing_window_ms || entity_track_time_ms < late_timing_window_ms
-   					}
+       				is_entity_current_within_hit_window := early_timing_window_ms <= entity_track_time_ms && entity_track_time_ms <= late_timing_window_ms
 
    					is_entity_already_missed_or_hit := entity_current.status == .Hit || entity_current.status == .Missed
 
-   					should_hit_entity := is_entity_current_within_hit_window && !is_entity_already_missed_or_hit
+   					should_hit_entity := is_entity_current_within_hit_window && !is_entity_already_missed_or_hit && did_user_attempt_hit_this_frame
 
    					if should_hit_entity
    					{
-   						// Note(jblat): This currently won't work. need to make sure that new create_entity() function is used to create
-   						// entities and not call ha_add() directly so that we set the handle here
-
-   						// TODO(jblat): This is where i was last
    						entity_current_ptr := ha_get_ptr(gmem.entities, entity_current.handle)
    						entity_current_ptr.status = .Hit
-   						// just some visual for right now that will get rendererd in render update in debug visuals active
-   						entity_current_ptr.collider = rl.Rectangle{0,0,1,1}
+   						status_entity := Entity {parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Hit}
+   						create_entity(status_entity)
+   					}
+
+   					did_user_miss_entity := entity_track_time_ms < early_timing_window_ms && !is_entity_already_missed_or_hit
+   					
+   					if did_user_miss_entity 
+   					{
+   						entity_current_ptr := ha_get_ptr(gmem.entities, entity_current.handle)
+   						entity_current_ptr.status = .Missed
+   						status_entity := Entity { parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Miss }
+   						create_entity(status_entity)
    					}
        			}
 
        			entity_current, _ = ha_get(gmem.entities, entity_current.next_entity_handle)
        		}
-
-
        	}
 
        	{ // moving
@@ -1212,7 +1285,7 @@ root_state_game :: proc()
        			for entity, handle in ha_iter(&entity_iter)
        			{
        				// just give it to the first person you find
-       				if entity.tex_id == .Person
+       				if entity.sprite_data == .Person
        				{
 						biscuit.parent_entity_handle = handle
 						break
@@ -1220,7 +1293,6 @@ root_state_game :: proc()
        			}
        		}
        	}
-
     }
 
 
@@ -1281,14 +1353,10 @@ root_state_game :: proc()
         	entity_iter := ha_make_iter(gmem.entities)
         	for entity, handle in ha_iter(&entity_iter)
         	{
-        		tex := gmem.textures[entity.tex_id]
         		
         		root_pos := entity_get_root_pos(handle)
 
-        		tex_width_f := f32(tex.width)
-        		tex_height_f := f32(tex.height)
-        		src := rl.Rectangle {0,0, 1, 1} // TODO: This will only work for single tile sprites
-        		dst := rl.Rectangle {root_pos.x, root_pos.y, 1, 1}
+        		
 
         		biscuit_root_pos := entity_get_root_pos(biscuit_h)
         		biscuit_is_to_left_of_this_entity := biscuit_root_pos.x < root_pos.x
@@ -1313,8 +1381,30 @@ root_state_game :: proc()
         			}
         		}
 
+        		switch sd in entity.sprite_data
+        		{
+        			case Texture_Id:
+        			{
+        				tex_id := sd
 
-        		rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x, flip_y = flip_y)
+        				tex := gmem.textures[tex_id]
+
+        				tex_width_f := f32(tex.width)
+        				tex_height_f := f32(tex.height)
+        				src := rl.Rectangle {0,0, 1, 1} // TODO: This will only work for single tile sprites
+        				dst := rl.Rectangle {root_pos.x, root_pos.y, 1, 1}
+
+        				rlgrid.draw_grid_texture_clip_on_grid(tex, src, 32, dst, 32, 0, flip_x = flip_x, flip_y = flip_y)
+
+        			}
+        			case Sprite_Clip_Name:
+        			{
+        				sprite_clip_name := sd
+
+        				draw_sprite_sheet_clip_on_game_texture_grid(sprite_clip_name,  root_pos)
+        			}
+        		}
+
 
         		if .Auto_Pass in entity.behaviors
         		{
@@ -1350,6 +1440,7 @@ root_state_game :: proc()
         	}
         }
 
+        
         if gmem.dbg_show_grid && gmem.dbg_camera_zoom > 0.09 
         {
 
@@ -1471,6 +1562,19 @@ root_state_game :: proc()
             rlgrid.draw_text_on_grid(gmem.font, text_pos_of_rectangle_cursor, [2]f32{0,0}, 0.5, 0, rl.BLACK, global_game_texture_grid_cell_size)
         }
 
+        { // draw spacebar picture
+        	is_spacebar_down := rl.IsKeyDown(.SPACE)
+        	if is_spacebar_down
+        	{
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Down, [2]f32{9.25, 7.5})
+        	}
+        	else
+        	{
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{9.25, 7.5})
+        	}
+        }
+
+
         rl.EndTextureMode()
     }
 }
@@ -1531,6 +1635,12 @@ root_state_bumper :: proc()
 	 * 4 enter level
 	 */
 
+	does_user_want_to_skip_bumper := rl.IsKeyPressed(.ENTER)
+	if does_user_want_to_skip_bumper
+	{
+		root_state_game_enter()
+		return
+	}
 
 	timer_duration : f32 = 2.0
 
@@ -1549,8 +1659,8 @@ root_state_bumper :: proc()
 	else if countdown_is_playing(gmem.bumper_fade_in_timer)
 	{
 		p := 1 - (gmem.bumper_fade_in_timer / timer_duration)
-		a := f32(tint.a) * p
-		tint.a = u8(a)		
+		transparency_based_on_elapsed_time_in_timer := f32(tint.a) * p
+		tint.a = u8(transparency_based_on_elapsed_time_in_timer)		
 	}
 
 	if gmem.bumper_did_voice_start
@@ -1571,17 +1681,17 @@ root_state_bumper :: proc()
 	else if countdown_is_playing(gmem.bumper_fade_out_timer)
 	{
 		p := gmem.bumper_fade_out_timer / timer_duration
-		a := f32(tint.a) * p
-		tint.a = u8(a)		
+		transparency_based_on_elapsed_time_in_timer := f32(tint.a) * p
+		tint.a = u8(transparency_based_on_elapsed_time_in_timer)		
 	}
 
 	if !fade_out_just_finished
 	{
-	rl.BeginTextureMode(gmem.game_render_target)
-	rl.ClearBackground(rl.BLACK)
-	tex := gmem.textures[.Bumper_Circus]
-	rl.DrawTexturePro(tex, rl.Rectangle{0,0,f32(tex.width), f32(tex.height)}, rl.Rectangle{0,0,global_game_view_pixels_width, global_game_view_pixels_height},[2]f32{0,0}, 0, tint )
-	rl.EndTextureMode()
+		rl.BeginTextureMode(gmem.game_render_target)
+		rl.ClearBackground(rl.BLACK)
+		tex := gmem.textures[.Bumper_Circus]
+		rl.DrawTexturePro(tex, rl.Rectangle{0,0,f32(tex.width), f32(tex.height)}, rl.Rectangle{0,0,global_game_view_pixels_width, global_game_view_pixels_height},[2]f32{0,0}, 0, tint )
+		rl.EndTextureMode()
 
 	}
 

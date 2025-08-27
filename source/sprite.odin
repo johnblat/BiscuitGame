@@ -15,8 +15,27 @@ Animation_Player :: struct
 }
 
 
-Sprite_Clip_Name :: enum {}
-global_sprite_clips := [Sprite_Clip_Name]rl.Rectangle{}
+Sprite_Clip_Name :: enum {
+    Status_Miss,
+    Status_Hit,
+    Spacebar_Down,
+    Spacebar_Up,
+}
+
+
+Sprite_Clip :: struct
+{
+    tex_id : Texture_Id,
+    clip_rectangle : rl.Rectangle,
+}
+
+global_sprite_clips := [Sprite_Clip_Name]Sprite_Clip{
+    .Status_Miss = { tex_id = .Statuses_Sprite_Sheet, clip_rectangle = rl.Rectangle{2,0,1,1} },
+    .Status_Hit = { tex_id = .Statuses_Sprite_Sheet, clip_rectangle = rl.Rectangle{0,0,1,1} },
+    .Spacebar_Down = {tex_id = .Spacebar_Sprite_Sheet, clip_rectangle = rl.Rectangle{2.5,0, 2.5, 1}},
+    .Spacebar_Up = { tex_id = .Spacebar_Sprite_Sheet, clip_rectangle = rl.Rectangle{0,0, 2.5, 1}},
+}
+
 
 Animation_Name :: enum {}
 global_sprite_animations := [Animation_Name][]Sprite_Clip_Name{}
@@ -64,8 +83,11 @@ draw_sprite_sheet_clip_on_grid :: proc(
     flip_y : bool = false,
 ) 
 {
-    rectangle_clip := global_sprite_clips[sprite_clip]
-    rlgrid.draw_grid_texture_clip_on_grid(gmem.texture_sprite_sheet, rectangle_clip, global_sprite_sheet_cell_size, dst_rectangle, dst_grid_cell_size, rotation, flip_x, flip_y)
+    rectangle_clip := global_sprite_clips[sprite_clip].clip_rectangle
+    tex_sprite_sheet_id := global_sprite_clips[sprite_clip].tex_id
+    tex := gmem.textures[tex_sprite_sheet_id]
+
+    rlgrid.draw_grid_texture_clip_on_grid(tex, rectangle_clip, global_sprite_sheet_cell_size, dst_rectangle, dst_grid_cell_size, rotation, flip_x, flip_y)
 }
 
 draw_sprite_sheet_clip_on_game_texture_grid :: proc(
@@ -78,10 +100,15 @@ draw_sprite_sheet_clip_on_game_texture_grid :: proc(
     flip_y : bool = false,
 ) 
 {
-    rectangle_clip := global_sprite_clips[sprite_clip]
+    rectangle_clip := global_sprite_clips[sprite_clip].clip_rectangle
+
     dst_rectangle := rl.Rectangle{pos.x, pos.y, rectangle_clip.width * scale_x, rectangle_clip.height * scale_y}
+    
+    tex_sprite_sheet_id := global_sprite_clips[sprite_clip].tex_id
+    tex := gmem.textures[tex_sprite_sheet_id]
+
     rlgrid.draw_grid_texture_clip_on_grid(
-        gmem.texture_sprite_sheet,
+        tex,
         rectangle_clip,
         global_sprite_sheet_cell_size,
         dst_rectangle,
