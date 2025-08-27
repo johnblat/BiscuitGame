@@ -20,6 +20,9 @@ bytes_png_rope := #load("../assets/rope.png")
 bytes_png_shark := #load("../assets/shark2.png")
 bytes_png_georgie := #load("../assets/georgie.png")
 bytes_png_reticle := #load("../assets/reticle.png")
+bytes_png_bumper_circus := #load("../assets/bumper_circus.png")
+bytes_png_bumper_unicycle := #load("../assets/bumper_unicycle.png")
+
 
 global_filename_window_save_data := "window_save_data.jam"
 global_game_view_pixels_width : f32 = 1280 / 2
@@ -42,8 +45,16 @@ Root_State :: enum
 {
     Main_Menu,
     Game,
+    Bumper,
 }
 
+
+Result_Status :: enum
+{
+	None,
+	Hit,
+	Missed,
+}
 
 Game_Memory :: struct 
 {
@@ -80,6 +91,14 @@ Game_Memory :: struct
     // Font
     font :                                rl.Font,
 
+    // bumper
+    bumper_sparkle_sound : rl.Sound,
+    bumper_fade_in_timer : f32,
+    bumper_fade_out_timer : f32,
+    bumper_texture : Texture_Id,
+    bumper_voice : rl.Sound,
+    bumper_did_voice_start : bool,
+
     // DEBUG
     dbg_show_grid :                       bool,
     dbg_show_level :                      bool,
@@ -111,6 +130,8 @@ Texture_Id :: enum {
 	Shark,
 	Georgie,
 	Reticle,
+	Bumper_Circus,
+	Bumper_Unicycle,
 }
 
 Behavior :: enum {
@@ -173,6 +194,8 @@ Entity :: struct
 
 	aim_angle : f32,
 
+	status : Result_Status,
+
 	/**
 	 *  How this will work for now is that we query the current time in the track.
 	 * We also store the 'previous' track time in the Game_Memory. This gives us an 'unplayed musical event window'
@@ -180,7 +203,10 @@ Entity :: struct
 	 *                                previous track time         current track time
 	 *                                                v             v
 	 * unplayed window: |                             |             |                                         |
-	 * events in order: e    e     e     e       e       e            e    e e e e         e  e      e        e
+	 * event in order:  e    e     e     e       e       e            e    e e e e         e  e      e        e
+	 * 
+	 *                                                          |  hit  |
+	 * 
 	 *                  |                             |             |                                         |
 	 *                  |  events that already played | will play - |    future stuff that didnt happen yet   |
      *                                                 during this -
@@ -311,6 +337,14 @@ create_entity_ring :: proc(handles_ordered : []Entity_Handle)
 		next_h := handles_ordered[next_i]
 		set_next_entity(this_h, next_h)
 	}
+}
+
+
+create_entity :: proc(entity : Entity)
+{	
+	new_handle := ha_add(&gmem.entities, entity)
+	ptr := ha_get_ptr(gmem.entities, new_handle)
+	ptr.handle = new_handle
 }
 
 
@@ -461,6 +495,9 @@ create_level_2 :: proc()
 
 create_level_3 :: proc()
 {
+	rl.StopMusicStream(gmem.music)
+	rl.PlayMusicStream(gmem.music)
+
 	ha_clear(&gmem.entities)
 
 	start_cursor := [2]f32{2,6}
@@ -502,6 +539,7 @@ create_level_3 :: proc()
 	cursor.x += 2
 
 	
+	set_next_entity(end_handle, start_handle) // make ring
 
 	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, tex_id =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, start_handle)
@@ -641,7 +679,7 @@ game_init_platform :: proc()
     }
 
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-    rl.InitWindow(window_width, window_height, "Odin Template")
+    rl.InitWindow(window_width, window_height, "Biscuit Boy")
     rl.SetWindowPosition(window_pos_x, window_pos_y)
 
     after_set_pos_monitor_id := rl.GetCurrentMonitor()
@@ -665,7 +703,8 @@ game_init_platform :: proc()
         rl.SetWindowPosition(reset_window_pos_x, reset_window_pos_y)
         rl.SetWindowSize(reset_window_width, reset_window_height)
     }
-
+    biscuit_image := rl.LoadImage("./assets/giant-biscuit.png")
+    rl.SetWindowIcon(biscuit_image)
     rl.InitAudioDevice()
     rl.SetTargetFPS(60)
 }
@@ -707,6 +746,9 @@ game_init :: proc()
     	.Shark = bytes_png_shark[:],
     	.Georgie = bytes_png_georgie[:],
     	.Reticle = bytes_png_reticle[:],
+    	.Bumper_Circus = bytes_png_bumper_circus[:],
+    	.Bumper_Unicycle = bytes_png_bumper_unicycle[:],
+
     }
 
     for bytes, tex_id in texture_bytes_png_map_to_load
@@ -727,6 +769,9 @@ game_init :: proc()
     gmem.clap_sound = rl.LoadSound("./assets/clap.wav")
     gmem.ready_sound = rl.LoadSound("./assets/ready.wav")
     rl.SetSoundVolume(gmem.ready_sound, 6.0)
+
+    gmem.bumper_voice = rl.LoadSound("./assets/bumper_circus.wav")
+    gmem.bumper_sparkle_sound = rl.LoadSound("./assets/success_1.mp3")
 
     create_level_3()
 
@@ -1044,12 +1089,14 @@ root_state_game :: proc()
 
        	{ // music timing stuff
        		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
+
        		track_time_ticks_current := rhythm_get_ticks_from_ms(track_time_ms_current, 160.0)
        		track_time_tick_previous := rhythm_get_ticks_from_ms(gmem.track_time_ms_previous, 160.0)
 
        		// needs to change
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ticks : u64 = 0
+
        		for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
        		{
        			entity_track_time_ticks += entity_current.delta_time_in_music_ticks
@@ -1064,7 +1111,7 @@ root_state_game :: proc()
    					}
    					else
    					{
-   				    	is_entity_current_within_trigger_window = entity_track_time_ticks >= gmem.track_time_ms_previous || entity_track_time_ticks < track_time_ticks_current
+   				    	is_entity_current_within_trigger_window = entity_track_time_ticks >= track_time_tick_previous || entity_track_time_ticks < track_time_ticks_current
    					}
 
    					if is_entity_current_within_trigger_window
@@ -1083,6 +1130,61 @@ root_state_game :: proc()
        		}
 
        		gmem.track_time_ms_previous = track_time_ms_current
+       	}
+
+       	{ // check for musical hits on input
+
+       		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
+
+       		// these are not exact. Just a rough frame estimate. We pretty much know we running at 60FPS
+       		early_timing_window_ms := u64(frame_time * 10) // roughly 10 frames
+       		late_timing_window_ms := u64(frame_time * 10) // roughly 10 frames
+
+       		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
+       		entity_track_time_ms : u64 = 0
+
+       		// just using H for now for testing
+       		// supposed to be space
+       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.H)
+
+       		for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
+       		{
+       			entity_track_time_ms += rhythm_get_ms_from_ticks(entity_current.delta_time_in_music_ticks, 160.0)
+
+       			if .Music_Event in entity_current.behaviors
+       			{
+       				is_entity_current_within_hit_window := false
+
+   					if early_timing_window_ms <= track_time_ms_current
+   					{
+   						is_entity_current_within_hit_window = entity_track_time_ms >= early_timing_window_ms && entity_track_time_ms < late_timing_window_ms		
+   					}
+   					else
+   					{
+   				    	is_entity_current_within_hit_window = entity_track_time_ms >= early_timing_window_ms || entity_track_time_ms < late_timing_window_ms
+   					}
+
+   					is_entity_already_missed_or_hit := entity_current.status == .Hit || entity_current.status == .Missed
+
+   					should_hit_entity := is_entity_current_within_hit_window && !is_entity_already_missed_or_hit
+
+   					if should_hit_entity
+   					{
+   						// Note(jblat): This currently won't work. need to make sure that new create_entity() function is used to create
+   						// entities and not call ha_add() directly so that we set the handle here
+
+   						// TODO(jblat): This is where i was last
+   						entity_current_ptr := ha_get_ptr(gmem.entities, entity_current.handle)
+   						entity_current_ptr.status = .Hit
+   						// just some visual for right now that will get rendererd in render update in debug visuals active
+   						entity_current_ptr.collider = rl.Rectangle{0,0,1,1}
+   					}
+       			}
+
+       			entity_current, _ = ha_get(gmem.entities, entity_current.next_entity_handle)
+       		}
+
+
        	}
 
        	{ // moving
@@ -1395,7 +1497,8 @@ root_state_main_menu :: proc()
         rl.IsGamepadButtonPressed(0, .RIGHT_FACE_DOWN)
     if is_input_start 
     {
-        gmem.root_state = .Game
+    	root_state_bumper_enter()
+        // gmem.root_state = .Game
     }
     rl.BeginTextureMode(gmem.game_render_target)
     defer rl.EndTextureMode()
@@ -1417,15 +1520,105 @@ root_state_main_menu :: proc()
 }
 
 
+
+root_state_bumper :: proc()
+{
+	/**
+	 * The progression of the bumper is like so:
+	 * 1 fade in the bumper image
+	 * 2 play voice clip
+	 * 3 fade out
+	 * 4 enter level
+	 */
+
+
+	timer_duration : f32 = 2.0
+
+	frame_time_uncapped := rl.GetFrameTime()
+    frame_time := min(frame_time_uncapped, f32(1.0 / 60.0))
+
+	tint := rl.WHITE
+
+	fade_in_just_finished := countdown_and_notify_just_finished(&gmem.bumper_fade_in_timer, frame_time)
+	if fade_in_just_finished 
+	{
+		rl.PlaySound(gmem.bumper_voice)
+		gmem.bumper_did_voice_start = true
+
+	}
+	else if countdown_is_playing(gmem.bumper_fade_in_timer)
+	{
+		p := 1 - (gmem.bumper_fade_in_timer / timer_duration)
+		a := f32(tint.a) * p
+		tint.a = u8(a)		
+	}
+
+	if gmem.bumper_did_voice_start
+	{
+		voice_finished := !rl.IsSoundPlaying(gmem.bumper_voice)
+		if voice_finished
+		{
+			gmem.bumper_did_voice_start = false
+			gmem.bumper_fade_out_timer = timer_duration
+		}
+	}
+
+	fade_out_just_finished := countdown_and_notify_just_finished(&gmem.bumper_fade_out_timer, frame_time)
+	if fade_out_just_finished
+	{
+		root_state_game_enter()
+	}
+	else if countdown_is_playing(gmem.bumper_fade_out_timer)
+	{
+		p := gmem.bumper_fade_out_timer / timer_duration
+		a := f32(tint.a) * p
+		tint.a = u8(a)		
+	}
+
+	if !fade_out_just_finished
+	{
+	rl.BeginTextureMode(gmem.game_render_target)
+	rl.ClearBackground(rl.BLACK)
+	tex := gmem.textures[.Bumper_Circus]
+	rl.DrawTexturePro(tex, rl.Rectangle{0,0,f32(tex.width), f32(tex.height)}, rl.Rectangle{0,0,global_game_view_pixels_width, global_game_view_pixels_height},[2]f32{0,0}, 0, tint )
+	rl.EndTextureMode()
+
+	}
+
+}
+
+
+root_state_bumper_enter :: proc()
+{
+	gmem.root_state = .Bumper
+	timer_duration : f32 = 2.0
+
+	gmem.bumper_texture = .Bumper_Circus
+	gmem.bumper_fade_in_timer = timer_duration
+	gmem.bumper_fade_out_timer = 0
+	rl.PlaySound(gmem.bumper_sparkle_sound)
+	gmem.bumper_did_voice_start = false
+	// TODO: set correct voice here depending on level transition
+
+}
+
+root_state_game_enter :: proc()
+{
+	gmem.root_state = .Game
+	create_level_3()
+}
+
 @(export)
 game_update :: proc() 
 {
     switch gmem.root_state 
     {
-    case .Main_Menu:
-        root_state_main_menu()
-    case .Game:
-        root_state_game()
+	    case .Main_Menu:
+	        root_state_main_menu()
+	    case .Game:
+	        root_state_game()
+	    case .Bumper:
+	    	root_state_bumper()
     }
 
 
