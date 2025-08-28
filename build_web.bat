@@ -29,7 +29,7 @@ set files=%OUT_DIR%\game.wasm.o %ODIN_PATH%\vendor\raylib\wasm\libraylib.a %ODIN
 
 :: index_template.html contains the javascript code that calls the procedures in
 :: source/main_web/main_web.odin
-set flags=-sUSE_GLFW=3 -sWASM_BIGINT -sASYNCIFY -g -sALLOW_MEMORY_GROWTH=1 -sINITIAL_HEAP=16777216 -sSTACK_SIZE=65536  -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS --shell-file source\main_web\index_template.html
+set flags=-sUSE_GLFW=3 -sWASM_BIGINT -sASYNCIFY -g -sALLOW_MEMORY_GROWTH=1  -sINITIAL_HEAP=67108864 -sMAXIMUM_MEMORY=268435456 -sSTACK_SIZE=262144 -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS --preload-file audio --shell-file source\main_web\index_template.html
 
 :: For debugging: Add `-g` to `emcc` (gives better error callstack in chrome)
 ::

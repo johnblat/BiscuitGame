@@ -27,7 +27,6 @@ create_emscripten_logger :: proc(lowest := log.Level.Debug, opt := Emscripten_Lo
 // emscripten runtime.
 @(default_calling_convention = "c")
 foreign _ 
-
 {
     puts :: proc(buffer : cstring) -> c.int ---
 }
@@ -115,7 +114,6 @@ this uses proper alignment, so that maps and simd works.
 // memory allocation features.
 @(default_calling_convention = "c")
 foreign _ 
-
 {
     calloc :: proc(num, size : c.size_t) -> rawptr ---
     free :: proc(ptr : rawptr) ---

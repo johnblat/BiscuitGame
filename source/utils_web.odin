@@ -14,7 +14,6 @@ import "core:strings"
 // These will be linked in by emscripten.
 @(default_calling_convention = "c")
 foreign _ 
-
 {
     fopen :: proc(filename, mode : cstring) -> ^FILE ---
     fseek :: proc(stream : ^FILE, offset : c.long, whence : Whence) -> c.int ---

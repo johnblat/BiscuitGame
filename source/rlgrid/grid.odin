@@ -60,13 +60,11 @@ draw_rectangle_on_grid_center_justified :: proc(r : rl.Rectangle, color : rl.Col
 }
 
 
-draw_rectangle_on_grid_justified :: proc(
-    r : rl.Rectangle,
-    color : rl.Color,
-    cell_size : f32,
-    horizontal_justification : Horizontal_Justification = .Left,
-    vertical_justification : Vertical_Justification = .Top,
-) 
+justify_rectangle :: proc(
+    r : rl.Rectangle, 
+    horizontal_justification  : Horizontal_Justification = .Left, 
+    vertical_justification : Vertical_Justification = .Top
+) -> rl.Rectangle
 {
     justified_rectangle := r
     switch horizontal_justification 
@@ -100,16 +98,43 @@ draw_rectangle_on_grid_justified :: proc(
     case .Top:
         
         {}
-
     }
+    return justified_rectangle
+}
 
+
+draw_rectangle_on_grid_justified :: proc(
+    r : rl.Rectangle,
+    color : rl.Color,
+    cell_size : f32,
+    horizontal_justification : Horizontal_Justification = .Left,
+    vertical_justification : Vertical_Justification = .Top,
+) 
+{
+    justified_rectangle := justify_rectangle(r, horizontal_justification, vertical_justification)
     draw_rectangle_on_grid(justified_rectangle, color, cell_size)
 }
+
+
+draw_rectangle_lines_on_grid_justified :: proc(
+    r : rl.Rectangle,
+    line_thick : f32,
+    color : rl.Color,
+    cell_size : f32,
+    horizontal_justification : Horizontal_Justification = .Left,
+    vertical_justification : Vertical_Justification = .Top,
+)
+{
+    justified_rectangle := justify_rectangle(r, horizontal_justification, vertical_justification)
+    draw_rectangle_lines_on_grid(justified_rectangle, line_thick, color, cell_size)
+}
+
 
 draw_rectangle_lines_on_grid :: proc(rectangle : rl.Rectangle, line_thick : f32, color : rl.Color, cell_size : f32) 
 {
     render_rectangle := get_rectangle_on_grid(rectangle, cell_size)
-    rl.DrawRectangleLinesEx(render_rectangle, line_thick, color)
+    _line_thick := line_thick * cell_size 
+    rl.DrawRectangleLinesEx(render_rectangle, _line_thick, color)
 }
 
 

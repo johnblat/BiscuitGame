@@ -20,8 +20,9 @@
 		},
 		{
 			"name": "odin build debug",
-			"cmd": "odin build .  -debug -out:game.exe",
+			"cmd": ".\\build_default.bat",
 			"file_regex": "^(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+			"working_dir": "${project_path}"
 		},
 		{
 			"name": "odin build debug hot reload",
