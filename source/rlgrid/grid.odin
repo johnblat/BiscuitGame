@@ -127,6 +127,12 @@ get_actual_pos :: proc(grid_pos : [2]f32, cell_size : f32) -> [2]f32
 }
 
 
+actual_pos_to_grid_pos :: proc(actual_pos : [2]f32, cell_size : f32) -> [2]f32
+{
+    ret := actual_pos / cell_size
+    return ret
+}
+
 draw_sprite_sheet_clip_on_grid :: proc(sprite_sheet : rl.Texture2D, src_grid_pos, dst_grid_pos : [2]f32, src_cell_size, dst_cell_size, rotation : f32) 
 {
     src_rect := get_grid_cell_rectangle(src_grid_pos, src_cell_size)

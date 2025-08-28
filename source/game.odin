@@ -1,5 +1,6 @@
 package game
 
+import "base:intrinsics"
 import "core:c"
 import "core:fmt"
 import "core:math"
@@ -24,6 +25,13 @@ bytes_png_bumper_circus := #load("../assets/bumper_circus.png")
 bytes_png_bumper_unicycle := #load("../assets/bumper_unicycle.png")
 bytes_png_statuses := #load("../assets/status.png")
 bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
+bytes_png_play_button_spritesheet := #load("../assets/play_button.png")
+bytes_png_credits_button_spritesheet := #load("../assets/credits_button.png")
+bytes_png_back_button_spritesheet := #load("../assets/back_button.png")
+bytes_png_credits := #load("../assets/credits.png")
+bytes_png_menu_bg := #load("../assets/menu_bg.png")
+bytes_png_framing_decorations := #load("../assets/framing_decorations.png")
+
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -70,6 +78,8 @@ Game_Memory :: struct
     clap_sound : rl.Sound,
     ready_sound : rl.Sound,
 
+    pop_sound : rl.Sound,
+
 	track_time_ms_previous : u64,
 	music_bpm : f32,
 
@@ -110,6 +120,10 @@ Game_Memory :: struct
     dbg_camera_offset :                   [2]f32,
     dbg_camera_zoom :                     f32,
     pause :                               bool,
+
+    //
+    main_menu_show_credits : bool,
+    main_menu_any_button_hovered_previous : bool,
 }
 
 
@@ -136,6 +150,12 @@ Texture_Id :: enum {
 	Bumper_Unicycle,
 	Statuses_Sprite_Sheet,
 	Spacebar_Sprite_Sheet,
+	Play_Button_Spritesheet,
+	Back_Button_Spritesheet,
+	Credits_Button_Spritesheet,
+	Credits,
+	Menu_Bg,
+	Framing_Decoration,
 }
 
 
@@ -530,6 +550,10 @@ create_level_2 :: proc()
 
 create_level_3 :: proc()
 {
+	rl.UnloadMusicStream(gmem.music)
+    gmem.music = rl.LoadMusicStream("./assets/monkey_with_snare_success.mp3")
+    gmem.music_bpm = 160.0
+
 	rl.StopMusicStream(gmem.music)
 	rl.PlayMusicStream(gmem.music)
 
@@ -573,13 +597,25 @@ create_level_3 :: proc()
 		)
 	cursor.x += 2
 
-	
+	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
 	set_next_entity(end_handle, start_handle) // make ring
 
+	// we keep external handle of biscuit cause right now we only have 1
+	// so now we don't have to go hunting for it in the entity array
+	// whenever we need it
 	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, sprite_data =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
 	set_parent(biscuit_h, start_handle)
+
+	// This just sets the head of the linked list
 	gmem.first_biscuit_parent_h = start_handle
 
+}
+
+create_level_4 :: proc()
+{
+	rl.UnloadMusicStream(gmem.music)
+    gmem.music = rl.LoadMusicStream("./assets/festive-biscuit_full.mp3")
+    gmem.music_bpm = 132.0
 }
 
 // GAMEPLAY 
@@ -785,6 +821,12 @@ game_init :: proc()
     	.Bumper_Unicycle = bytes_png_bumper_unicycle[:],
     	.Statuses_Sprite_Sheet = bytes_png_statuses[:],
     	.Spacebar_Sprite_Sheet = bytes_png_spacebar_spritesheet[:],
+    	.Play_Button_Spritesheet = bytes_png_play_button_spritesheet[:],
+    	.Back_Button_Spritesheet = bytes_png_back_button_spritesheet[:],
+    	.Credits_Button_Spritesheet = bytes_png_credits_button_spritesheet[:],
+    	.Credits = bytes_png_credits[:],
+    	.Menu_Bg = bytes_png_menu_bg[:],
+    	.Framing_Decoration = bytes_png_framing_decorations[:],
 
     }
 
@@ -799,9 +841,6 @@ game_init :: proc()
     gmem.overlay_image = rl.GenImageColor(5, 5, rl.BLANK)
     gmem.overlay_tex = rl.LoadTextureFromImage(gmem.overlay_image)
 
-    gmem.music = rl.LoadMusicStream("./assets/monkey-for-john.mp3")
-    rl.SetMusicVolume(gmem.music, 1.0)
-    rl.PlayMusicStream(gmem.music)
 
     gmem.clap_sound = rl.LoadSound("./assets/clap.wav")
     gmem.ready_sound = rl.LoadSound("./assets/ready.wav")
@@ -810,37 +849,34 @@ game_init :: proc()
     gmem.bumper_voice = rl.LoadSound("./assets/bumper_circus.wav")
     gmem.bumper_sparkle_sound = rl.LoadSound("./assets/success_1.mp3")
 
-    create_level_3()
+    gmem.pop_sound = rl.LoadSound("./assets/ui_select.mp3")
+
+    // create_level_3()
+
+    root_state_main_menu_enter()
 
 }
 
 
-root_state_main_menu_enter :: proc() 
-{
-    gmem.root_state = .Main_Menu
-
-}
 
 root_state_game :: proc() 
 {
+	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 100, 30}
+
+
 	length_of_track := rl.GetMusicTimeLength(gmem.music)
 	current_time_in_track := rl.GetMusicTimePlayed(gmem.music)
-	music_is_over := current_time_in_track >= length_of_track
+	
+	music_is_over := current_time_in_track + 0.3 >= length_of_track // added additional time here because raylib will want to loop the song and im not quite sure if there a way to tell if the song just finised...
+	
 	if music_is_over
 	{
 		// handle this case better
 		gmem.track_time_ms_previous = 0
 		create_level_3()
 	}
-	rl.UpdateMusicStream(gmem.music)
-	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 100, 30}
 
     if rl.IsKeyPressed(.ENTER) 
-    {
-        gmem.pause = !gmem.pause
-    }
-
-    if rl.IsKeyPressed(.BACKSPACE) 
     {
         gmem.pause = !gmem.pause
     }
@@ -934,6 +970,9 @@ root_state_game :: proc()
 
     if should_run_simulation 
     {
+		rl.UpdateMusicStream(gmem.music)
+
+
         scale := min(f32(rl.GetScreenWidth()) / global_game_view_pixels_width, f32(rl.GetScreenHeight()) / global_game_view_pixels_height)
 
         // Update virtual mouse (clamped mouse value behind game screen)
@@ -1346,6 +1385,7 @@ root_state_game :: proc()
 
 
 		biscuit_root_pos := entity_get_root_pos(biscuit_h)
+		biscuit_root_pos += 0.5
 		actual_pos := rlgrid.get_actual_pos(biscuit_root_pos, 32)
 		gmem.camera.target = actual_pos 
         	
@@ -1581,17 +1621,32 @@ root_state_game :: proc()
         	is_spacebar_down := rl.IsKeyDown(.SPACE)
         	if is_spacebar_down
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Down, [2]f32{9.25, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Down, [2]f32{8.75, 7.5})
         	}
         	else
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{9.25, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{8.75, 7.5})
         	}
+        }
+
+        { // draw decorations
+        	rl.DrawTexture(gmem.textures[.Framing_Decoration], 0, 0, rl.WHITE)	
         }
 
 
         rl.EndTextureMode()
     }
+}
+
+
+root_state_main_menu_enter :: proc() 
+{
+	rl.UnloadMusicStream(gmem.music)
+	gmem.music = rl.LoadMusicStream("./assets/biscuit.mp3")
+	rl.PlayMusicStream(gmem.music)
+    gmem.root_state = .Main_Menu
+    gmem.main_menu_show_credits = false
+
 }
 
 
@@ -1601,40 +1656,158 @@ root_state_main_menu :: proc()
     blink_timer_duration :: 0.3
     @(static) blink_timer : f32 = blink_timer_duration
 
+    rl.UpdateMusicStream(gmem.music)
+
+    scale := min(f32(rl.GetScreenWidth()) / global_game_view_pixels_width, f32(rl.GetScreenHeight()) / global_game_view_pixels_height)
+
+    mouse := rl.GetMousePosition()
+    virtual_mouse_current := [2]f32{0, 0}
+    virtual_mouse_current.x = (mouse.x - (f32(rl.GetScreenWidth()) - (global_game_view_pixels_width * scale)) * 0.5) / scale
+    virtual_mouse_current.y = (mouse.y - (f32(rl.GetScreenHeight()) - (global_game_view_pixels_height * scale)) * 0.5) / scale
+    virtual_mouse_current = rl.Vector2Clamp(virtual_mouse_current, [2]f32{0, 0}, [2]f32{global_game_view_pixels_width, global_game_view_pixels_height})
+
+    if rl.IsKeyPressed(.FIVE) // just some random hotkey to break on debugger
+    {
+    	intrinsics.debug_trap()
+    }
+
     dt := rl.GetFrameTime()
-    if countdown_and_notify_just_finished(&blink_timer, dt) 
+
+	is_any_hovered_current := false
+
+    if !gmem.main_menu_show_credits
     {
-        visible = !visible
-        blink_timer = blink_timer_duration
+    	if countdown_and_notify_just_finished(&blink_timer, dt) 
+	    {
+	        visible = !visible
+	        blink_timer = blink_timer_duration
+	    }
+
+	    is_input_start :=
+	        rl.IsKeyPressed(.ENTER) ||
+	        rl.IsGamepadButtonPressed(0, .MIDDLE) ||
+	        rl.IsGamepadButtonPressed(0, .MIDDLE_LEFT) ||
+	        rl.IsGamepadButtonPressed(0, .MIDDLE_RIGHT) ||
+	        rl.IsGamepadButtonPressed(0, .RIGHT_FACE_DOWN)
+
+	    if is_input_start 
+	    {
+	    	root_state_bumper_enter()
+	    }
+
+	    play_button_pos := [2]f32{13, 5}
+	    credits_button_pos := [2]f32{12, 7}
+		play_button_sprite_clip := Sprite_Clip_Name.Play_Button_Up
+		credits_button_sprite_clip := Sprite_Clip_Name.Credits_Button_Up
+
+
+	    {
+	    	play_button_collision_rectangle := global_sprite_clips[.Play_Button_Up].clip_rectangle
+	    	play_button_collision_rectangle.x = play_button_pos.x
+	    	play_button_collision_rectangle.y = play_button_pos.y
+
+	    	play_button_grid_rectangle := rlgrid.get_rectangle_on_grid(play_button_collision_rectangle, 32)
+
+
+	    	is_hover_over_play_button := rl.CheckCollisionPointRec(virtual_mouse_current, play_button_grid_rectangle)
+	    	if is_hover_over_play_button
+	    	{
+	    		play_button_sprite_clip = .Play_Button_Down
+	    		is_any_hovered_current = true
+
+	    		if rl.IsMouseButtonPressed(.LEFT)
+	    		{
+	    			root_state_bumper_enter()
+	    		}
+	    	}
+	    }
+
+	    {
+	    	credits_button_collision_rectangle := global_sprite_clips[.Credits_Button_Up].clip_rectangle
+	    	credits_button_collision_rectangle.x = credits_button_pos.x
+	    	credits_button_collision_rectangle.y = credits_button_pos.y
+
+	    	credits_button_grid_rectangle := rlgrid.get_rectangle_on_grid(credits_button_collision_rectangle, 32)
+
+	    	is_hover_over_credits_button := rl.CheckCollisionPointRec(virtual_mouse_current, credits_button_grid_rectangle)
+	    	if is_hover_over_credits_button
+	    	{
+	    		credits_button_sprite_clip = .Credits_Button_Down
+    			is_any_hovered_current = true
+
+
+	    		if rl.IsMouseButtonPressed(.LEFT)
+	    		{
+	    			gmem.main_menu_show_credits = true
+	    		}
+	    	}
+	    }
+
+
+	    rl.BeginTextureMode(gmem.game_render_target)
+	    defer rl.EndTextureMode()
+
+	    rl.ClearBackground(rl.BLACK)
+
+	    rl.DrawTexture(gmem.textures[.Menu_Bg], 0, 0, rl.WHITE)
+	    draw_sprite_sheet_clip_on_game_texture_grid(play_button_sprite_clip, play_button_pos)
+	    draw_sprite_sheet_clip_on_game_texture_grid(credits_button_sprite_clip, credits_button_pos)
+
+	    if false 
+	    { // can activate if u want with visible toggle
+	        press_enter_centered_pos := [2]f32{global_number_grid_cells_axis_x / 2, 8}
+	        rlgrid.draw_text_on_grid_centered(gmem.font, "press enter to play", press_enter_centered_pos, 0.7, 0, rl.WHITE, global_game_texture_grid_cell_size)
+	    }
+    }
+    else
+    { // credits
+
+    	if rl.IsKeyPressed(.ENTER)
+    	{
+    		gmem.main_menu_show_credits = false
+    	}
+
+	    back_button_pos := [2]f32{15, 9}
+		back_button_sprite_clip := Sprite_Clip_Name.Back_Button_Up
+
+
+		{
+	    	back_button_collision_rectangle := global_sprite_clips[.Back_Button_Up].clip_rectangle
+	    	back_button_collision_rectangle.x = back_button_pos.x
+	    	back_button_collision_rectangle.y = back_button_pos.y
+
+	    	back_button_grid_rectangle := rlgrid.get_rectangle_on_grid(back_button_collision_rectangle, 32)
+
+	    	is_hover_over_back_button := rl.CheckCollisionPointRec(virtual_mouse_current, back_button_grid_rectangle)
+	    	if is_hover_over_back_button
+	    	{
+	    		back_button_sprite_clip = .Back_Button_Down
+				is_any_hovered_current = true
+	    		
+	    		if rl.IsMouseButtonPressed(.LEFT)
+	    		{
+	    			gmem.main_menu_show_credits = false
+	    		}
+	    	}
+	    }
+
+    	tex := gmem.textures[.Credits]
+
+    	rl.BeginTextureMode(gmem.game_render_target)
+	    defer rl.EndTextureMode()
+    	rl.DrawTextureV(tex, [2]f32{0,0},rl.WHITE)
+	    draw_sprite_sheet_clip_on_game_texture_grid(back_button_sprite_clip, back_button_pos)
     }
 
-    is_input_start :=
-        rl.IsKeyPressed(.ENTER) ||
-        rl.IsGamepadButtonPressed(0, .MIDDLE) ||
-        rl.IsGamepadButtonPressed(0, .MIDDLE_LEFT) ||
-        rl.IsGamepadButtonPressed(0, .MIDDLE_RIGHT) ||
-        rl.IsGamepadButtonPressed(0, .RIGHT_FACE_DOWN)
-    if is_input_start 
-    {
-    	root_state_bumper_enter()
-        // gmem.root_state = .Game
-    }
-    rl.BeginTextureMode(gmem.game_render_target)
-    defer rl.EndTextureMode()
-
-    rl.ClearBackground(rl.BLACK)
-    title_centered_pos := [2]f32{global_number_grid_cells_axis_x / 2, 3}
-    rlgrid.draw_text_on_grid_centered(gmem.font, "BISCUIT BOY", title_centered_pos, 2, 0, rl.GREEN, global_game_texture_grid_cell_size)
-    title_centered_pos.y += 2
-    rlgrid.draw_text_on_grid_centered(gmem.font, "AND THE MAGIC TEA CUP", title_centered_pos, 1, 0, rl.GREEN, global_game_texture_grid_cell_size)
-    title_centered_pos.y += 2
+    just_hovered_a_button := is_any_hovered_current && !gmem.main_menu_any_button_hovered_previous
+	if just_hovered_a_button
+	{	
+		rl.PlaySound(gmem.pop_sound)
+	}
+	gmem.main_menu_any_button_hovered_previous = is_any_hovered_current
 
 
-    if visible 
-    {
-        press_enter_centered_pos := [2]f32{global_number_grid_cells_axis_x / 2, 8}
-        rlgrid.draw_text_on_grid_centered(gmem.font, "press enter to play", press_enter_centered_pos, 0.7, 0, rl.WHITE, global_game_texture_grid_cell_size)
-    }
+    
 
 }
 

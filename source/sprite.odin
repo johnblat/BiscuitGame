@@ -20,6 +20,13 @@ Sprite_Clip_Name :: enum {
     Status_Hit,
     Spacebar_Down,
     Spacebar_Up,
+    Play_Button_Up,
+    Play_Button_Down,
+    Credits_Button_Up,
+    Credits_Button_Down,
+    Back_Button_Up,
+    Back_Button_Down,
+
 }
 
 
@@ -34,6 +41,16 @@ global_sprite_clips := [Sprite_Clip_Name]Sprite_Clip{
     .Status_Hit = { tex_id = .Statuses_Sprite_Sheet, clip_rectangle = rl.Rectangle{0,0,1,1} },
     .Spacebar_Down = {tex_id = .Spacebar_Sprite_Sheet, clip_rectangle = rl.Rectangle{2.5,0, 2.5, 1}},
     .Spacebar_Up = { tex_id = .Spacebar_Sprite_Sheet, clip_rectangle = rl.Rectangle{0,0, 2.5, 1}},
+
+    .Play_Button_Up = { tex_id = .Play_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,0,3,1}},
+    .Play_Button_Down = { tex_id = .Play_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,1,3,1}},
+
+    .Back_Button_Up = { tex_id = .Back_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,0,3,1}},
+    .Back_Button_Down = { tex_id = .Back_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,1,3,1}},
+
+    .Credits_Button_Up = { tex_id = .Credits_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,0,3,1}},
+    .Credits_Button_Down = { tex_id = .Credits_Button_Spritesheet, clip_rectangle = rl.Rectangle{0,1,3,1}},
+
 }
 
 
