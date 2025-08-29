@@ -62,7 +62,7 @@ ha_get_ptr :: proc(ha: Handle_Array($T, $HT), h: HT) -> ^T {
 		return &ha.items[h.idx]
 	}
 
-	return nil
+	return &ha.items[0]
 }
 
 ha_remove :: proc(ha: ^Handle_Array($T, $HT), h: HT) {

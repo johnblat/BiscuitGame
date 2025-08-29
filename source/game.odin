@@ -23,7 +23,7 @@ bytes_png_reticle := #load("../assets/reticle.png")
 bytes_png_bumper_circus := #load("../assets/bumper_circus.png")
 bytes_png_bumper_unicycle := #load("../assets/bumper_unicycle.png")
 bytes_png_statuses := #load("../assets/status.png")
-bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
+bytes_png_B_spritesheet := #load("../assets/b_button.png")
 bytes_png_play_button_spritesheet := #load("../assets/play_button.png")
 bytes_png_credits_button_spritesheet := #load("../assets/credits_button.png")
 bytes_png_back_button_spritesheet := #load("../assets/back_button.png")
@@ -85,6 +85,7 @@ Game_Memory :: struct
 
 
     music :                               rl.Music,
+    calibration_adjustment_ms : i32,
     clap_sound : rl.Sound,
     ready_sound : rl.Sound,
 
@@ -162,7 +163,7 @@ Texture_Id :: enum {
 	Bumper_Circus,
 	Bumper_Unicycle,
 	Statuses_Sprite_Sheet,
-	Spacebar_Sprite_Sheet,
+	B_Button_Sprite_Sheet,
 	Play_Button_Spritesheet,
 	Back_Button_Spritesheet,
 	Credits_Button_Spritesheet,
@@ -989,7 +990,7 @@ game_init :: proc()
     gmem.dbg_show_grid = false
     gmem.dbg_is_frogger_unkillable = false
 
-    gmem.font = rl.LoadFontFromMemory(".otf", &bytes_font_data[0], i32(len(bytes_font_data)), 256, nil, 0)
+    gmem.font = rl.LoadFontFromMemory(".otf", &bytes_font_data[0], i32(len(bytes_font_data)), 256*2, nil, 0)
 
     gmem.dbg_camera_zoom = 1.0
 
@@ -1011,7 +1012,7 @@ game_init :: proc()
     	.Bumper_Circus = bytes_png_bumper_circus[:],
     	.Bumper_Unicycle = bytes_png_bumper_unicycle[:],
     	.Statuses_Sprite_Sheet = bytes_png_statuses[:],
-    	.Spacebar_Sprite_Sheet = bytes_png_spacebar_spritesheet[:],
+    	.B_Button_Sprite_Sheet = bytes_png_B_spritesheet[:],
     	.Play_Button_Spritesheet = bytes_png_play_button_spritesheet[:],
     	.Back_Button_Spritesheet = bytes_png_back_button_spritesheet[:],
     	.Credits_Button_Spritesheet = bytes_png_credits_button_spritesheet[:],
@@ -1048,6 +1049,7 @@ game_init :: proc()
 
     gmem.level_index_current = 0
 
+    gmem.calibration_adjustment_ms = -20
     // create_level_3()
 
     root_state_main_menu_enter()
@@ -1141,40 +1143,42 @@ root_state_game :: proc()
             return
         }
 
+        if rl.IsKeyDown(.C)
+        {
+        	if rl.IsKeyDown(.A) && rl.IsKeyDown(.D) 
+        	{
+        	    gmem.dbg_camera_offset = 0
+        	}
+        	 else if rl.IsKeyPressed(.A) 
+        	{
+        	    gmem.dbg_camera_offset.x += global_game_texture_grid_cell_size
+        	}
+        	 else if rl.IsKeyPressed(.D) 
+        	{
+        	    gmem.dbg_camera_offset.x -= global_game_texture_grid_cell_size
+        	}
+        	 else if rl.IsKeyPressed(.S) 
+        	{
+        	    gmem.dbg_camera_offset.y -= global_game_texture_grid_cell_size
+        	}
+        	 else if rl.IsKeyPressed(.W) 
+        	{
+        	    gmem.dbg_camera_offset.y += global_game_texture_grid_cell_size
+        	}
 
-        if rl.IsKeyDown(.A) && rl.IsKeyDown(.D) 
-        {
-            gmem.dbg_camera_offset = 0
-        }
-         else if rl.IsKeyPressed(.A) 
-        {
-            gmem.dbg_camera_offset.x += global_game_texture_grid_cell_size
-        }
-         else if rl.IsKeyPressed(.D) 
-        {
-            gmem.dbg_camera_offset.x -= global_game_texture_grid_cell_size
-        }
-         else if rl.IsKeyPressed(.S) 
-        {
-            gmem.dbg_camera_offset.y -= global_game_texture_grid_cell_size
-        }
-         else if rl.IsKeyPressed(.W) 
-        {
-            gmem.dbg_camera_offset.y += global_game_texture_grid_cell_size
-        }
-
-        if rl.IsKeyDown(.MINUS) && rl.IsKeyDown(.EQUAL) 
-        {
-            gmem.dbg_camera_zoom = 1.0
-        }
-         else if rl.IsKeyPressed(.MINUS) 
-        {
-            gmem.dbg_camera_zoom -= 0.1
-            gmem.dbg_camera_zoom = max(gmem.dbg_camera_zoom, 0.1)
-        }
-         else if rl.IsKeyPressed(.EQUAL) 
-        {
-            gmem.dbg_camera_zoom += 0.1
+        	if rl.IsKeyDown(.MINUS) && rl.IsKeyDown(.EQUAL) 
+        	{
+        	    gmem.dbg_camera_zoom = 1.0
+        	}
+        	 else if rl.IsKeyPressed(.MINUS) 
+        	{
+        	    gmem.dbg_camera_zoom -= 0.1
+        	    gmem.dbg_camera_zoom = max(gmem.dbg_camera_zoom, 0.1)
+        	}
+        	 else if rl.IsKeyPressed(.EQUAL) 
+        	{
+        	    gmem.dbg_camera_zoom += 0.1
+        	}
         }
 
         skip_next_frame = rl.IsKeyPressed(.RIGHT)
@@ -1198,6 +1202,14 @@ root_state_game :: proc()
 
     }
 
+    if rl.IsKeyPressedRepeat(.EQUAL) || rl.IsKeyPressed(.EQUAL)
+    {
+    	gmem.calibration_adjustment_ms += 1
+    }
+    else if rl.IsKeyPressedRepeat(.MINUS) || rl.IsKeyPressed(.MINUS)
+    {
+    	gmem.calibration_adjustment_ms -= 1
+    }
 
     frame_time_uncapped := rl.GetFrameTime()
     frame_time := min(frame_time_uncapped, f32(1.0 / 60.0))
@@ -1421,12 +1433,11 @@ root_state_game :: proc()
 				
        	}
 
-   		calibration_adjust := u64(16)
-
-
        	{ // music timing stuff
-       		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
-       		track_time_ms_current -= calibration_adjust
+       		track_time_ms_current_i := i32(rl.GetMusicTimePlayed(gmem.music) * 1000)
+       		track_time_ms_current_i += gmem.calibration_adjustment_ms
+       		track_time_ms_current_i = max(0, track_time_ms_current_i)
+       		track_time_ms_current := u64(track_time_ms_current_i)
 
        		track_time_ticks_current := rhythm_get_ticks_from_ms(track_time_ms_current, gmem.music_bpm)
        		track_time_tick_previous := rhythm_get_ticks_from_ms(gmem.track_time_ms_previous, gmem.music_bpm)
@@ -1484,8 +1495,10 @@ root_state_game :: proc()
        		 *                   within hit window
        		 */
 
-       		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
-       		track_time_ms_current -= calibration_adjust
+       		track_time_ms_current_i := i32(rl.GetMusicTimePlayed(gmem.music) * 1000)
+       		track_time_ms_current_i += gmem.calibration_adjustment_ms
+       		track_time_ms_current_i = max(0, track_time_ms_current_i)
+       		track_time_ms_current := u64(track_time_ms_current_i)
 
        		early_timing_window_ms_i := i32(track_time_ms_current) - i32(sec_to_ms(frame_time) * 5)
        		early_timing_window_ms_i = max(early_timing_window_ms_i, 0)
@@ -1495,7 +1508,7 @@ root_state_game :: proc()
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ms : u64 = 0
 
-       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.UP) 
+       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.B) 
 
 
        		/**
@@ -1873,14 +1886,14 @@ root_state_game :: proc()
         }
 
         { // draw spacebar picture
-        	is_spacebar_down := rl.IsKeyDown(.SPACE)
-        	if is_spacebar_down
+        	is_hit_key_down := rl.IsKeyDown(.B)
+        	if is_hit_key_down
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Down, [2]f32{8.75, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.B_Button_Down, [2]f32{9.5, 7.5})
         	}
         	else
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{8.75, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.B_Button_Up, [2]f32{9.5, 7.5})
         	}
         }
 
@@ -1901,6 +1914,14 @@ root_state_game :: proc()
         	rl.DrawTexture(gmem.textures[.Spinning_Decoration], 640 - 50, 360 -  90, rl.WHITE)
 
         	
+        }
+
+        { // more debug stuff
+        	calibration_instructions_text : cstring = "use -/+ buttons to adjust calibration" 
+        	calibration_text := fmt.ctprintf("calibration: %d ms", gmem.calibration_adjustment_ms)
+        	
+        	rlgrid.draw_text_on_grid_right_justified(gmem.font, calibration_instructions_text, [2]f32{19.7, 0}, 0.4, 0, rl.WHITE, 32)
+        	rlgrid.draw_text_on_grid_right_justified(gmem.font, calibration_text, [2]f32{19.7, 1}, 0.4, 0, rl.WHITE, 32)
         }
 
 
