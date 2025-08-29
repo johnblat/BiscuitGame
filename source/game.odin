@@ -92,6 +92,9 @@ Game_Memory :: struct
 	entities : Handle_Array(Entity, Entity_Handle),
 	first_biscuit_parent_h : Entity_Handle,
 
+	lives : i32, // Current number of lives
+	default_lives : i32, // Default starting lives  
+	life_lost_recently_frames : i32, // Cooldown to prevent losing multiple lives for the same mistake
 
     music :                               rl.Music,
     calibration_adjustment_ms : i32,
@@ -1053,6 +1056,8 @@ game_init :: proc()
     gmem = new(Game_Memory)
 
     gmem.root_state = .Main_Menu
+    gmem.default_lives = 5
+    gmem.lives = gmem.default_lives
 
     game_render_target := rl.LoadRenderTexture(i32(global_game_view_pixels_width), i32(global_game_view_pixels_height))
     rl.SetTextureFilter(game_render_target.texture, rl.TextureFilter.POINT)
@@ -1143,6 +1148,9 @@ game_init :: proc()
 
 root_state_game_enter :: proc()
 {
+	// Reset lives to default value
+	gmem.lives = gmem.default_lives
+	
 	// depending on level, set it here
 	max_number_of_levels : u32 = 2
 
@@ -1579,6 +1587,12 @@ root_state_game :: proc()
        		 *                        |                    outside of window
        		 *                   within hit window
        		 */
+       		
+       		// Decrement the life loss cooldown
+       		if gmem.life_lost_recently_frames > 0
+       		{
+       			gmem.life_lost_recently_frames -= 1
+       		}
 
        		track_time_ms_current_i := i32(rl.GetMusicTimePlayed(gmem.music) * 1000)
        		track_time_ms_current_i += gmem.calibration_adjustment_ms
@@ -1594,6 +1608,8 @@ root_state_game :: proc()
        		entity_track_time_ms : u64 = 0
 
        		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.B) || rl.IsKeyPressed(.SPACE)
+       		hit_something := false // Track if we successfully hit any entity this frame
+       		missed_entity := false // Track if any entity passed the timing window this frame
 
 
        		/**
@@ -1636,6 +1652,7 @@ root_state_game :: proc()
    						entity_current_ptr.status = .Hit
    						status_entity := Entity {parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Hit}
    						create_entity(status_entity)
+   						hit_something = true
    					}
 
    					did_user_miss_entity := entity_track_time_ms < early_timing_window_ms && !is_entity_already_missed_or_hit
@@ -1646,11 +1663,34 @@ root_state_game :: proc()
    						entity_current_ptr.status = .Missed
    						status_entity := Entity { parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Miss }
    						create_entity(status_entity)
+   						if !missed_entity  // Only lose 1 life even if multiple entities are missed
+   						{
+   							missed_entity = true
+   							gmem.lives -= 1
+   							gmem.life_lost_recently_frames = 10  // Prevents losing another life if user presses key right after
+   						}
    					}
        			}
 
        			entity_current, _ = ha_get(gmem.entities, entity_current.next_entity_handle)
        		}
+       		
+       		// Lose a life if user pressed but didn't hit anything (only if not on cooldown)
+       		// The cooldown prevents double penalty when an entity is missed and user presses key in next frame
+       		if did_user_attempt_hit_this_frame && !hit_something && !missed_entity && gmem.life_lost_recently_frames == 0
+       		{
+       			gmem.lives -= 1
+       			gmem.life_lost_recently_frames = 10
+       		}
+       	}
+       	
+       	// Check if lives have run out
+       	if gmem.lives <= 0
+       	{
+       		// Reset the level from the beginning
+       		gmem.track_time_ms_previous = 0
+       		root_state_game_enter()
+       		return
        	}
 
        	// comment this out for now. MAYBE bring it back if we have entities move in the level
@@ -2008,6 +2048,19 @@ root_state_game :: proc()
         	
         	rlgrid.draw_text_on_grid_right_justified(gmem.font, calibration_instructions_text, [2]f32{19.7, 0}, 0.4, 0, rl.WHITE, 32)
         	rlgrid.draw_text_on_grid_right_justified(gmem.font, calibration_text, [2]f32{19.7, 1}, 0.4, 0, rl.WHITE, 32)
+        }
+        
+        { // Display lives as biscuit icons in top-left corner
+        	biscuit_texture := gmem.textures[.Regular_Biscuit]
+        	spacing : i32 = 35 // Spacing between biscuits
+        	start_x : i32 = 10 // Start from left side
+        	y_pos : i32 = 10 // Top of screen
+        	
+        	for i : i32 = 0; i < gmem.lives; i += 1
+        	{
+        		x_pos := start_x + i * spacing
+        		rl.DrawTexture(biscuit_texture, x_pos, y_pos, rl.WHITE)
+        	}
         }
 
 
