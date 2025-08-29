@@ -572,7 +572,7 @@ create_level_2 :: proc()
 create_level_3 :: proc()
 {
 	rl.UnloadMusicStream(gmem.music)
-    gmem.music = rl.LoadMusicStream("audio/monkey_with_snare_success.mp3")
+    gmem.music = rl.LoadMusicStream("audio/monkey_full_160_extended.ogg")
     gmem.music_bpm = 160.0
 
 	rl.StopMusicStream(gmem.music)
@@ -742,7 +742,7 @@ create_level_4 :: proc()
 {
 	rl.UnloadMusicStream(gmem.music)
 	gmem.track_time_ms_previous = 0
-    gmem.music = rl.LoadMusicStream("audio/festive-biscuit_full.mp3")
+    gmem.music = rl.LoadMusicStream("audio/festive-biscuit_full_132_extended.ogg")
     gmem.music_bpm = 132.0
 
     rl.StopMusicStream(gmem.music)
@@ -1421,9 +1421,11 @@ root_state_game :: proc()
 				
        	}
 
+   		calibration_adjust := u64(16)
+
+
        	{ // music timing stuff
        		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
-       		calibration_adjust := u64(12)
        		track_time_ms_current -= calibration_adjust
 
        		track_time_ticks_current := rhythm_get_ticks_from_ms(track_time_ms_current, gmem.music_bpm)
@@ -1452,11 +1454,6 @@ root_state_game :: proc()
 
    					if is_entity_current_within_trigger_window
    					{
-   						// rl.PlaySound(gmem.clap_sound)
-   						if .Play_Sound_Event in entity_current.behaviors
-   						{
-   							rl.PlaySound(gmem.ready_sound)
-   						}
    						// NOTE(jblat): we may want to ensure we set the parent to the current entity here
    						// as otherwise there's nothing guaranteeing the biscuit is on the current musical entity
    						// it could be on any entity
@@ -1488,8 +1485,6 @@ root_state_game :: proc()
        		 */
 
        		track_time_ms_current := u64(rl.GetMusicTimePlayed(gmem.music) * 1000)
-
-       		calibration_adjust := u64(12)
        		track_time_ms_current -= calibration_adjust
 
        		early_timing_window_ms_i := i32(track_time_ms_current) - i32(sec_to_ms(frame_time) * 5)

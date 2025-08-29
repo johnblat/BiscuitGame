@@ -1,3 +1,3 @@
 echo Building game.exe
 
-odin build  source/main_default -debug -out:game.exe -vet-shadowing
+odin build  source/main_default -debug -out:build/game.exe -vet-shadowing
