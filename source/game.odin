@@ -591,14 +591,15 @@ create_level_3 :: proc()
 
 	cursor.x += 2
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
 		)
-	cursor.x += 2
 
-	for i in 0..<30
+	for i in 0..<4
 	{
+		cursor.x += 2
+
 		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
 				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
 				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
@@ -606,16 +607,125 @@ create_level_3 :: proc()
 
 		cursor.x += 2
 		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-				Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-				Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-				Entity { sprite_data = .Unicycle1, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
 			)
+	}
+
+	cursor.y -= 2
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0,-2}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+
+	cursor.x += 6
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0.5}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.y -= 2
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0,-1}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, -1}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.x += 5
+	for i in 0..<2
+	{
 		cursor.x += 2
+
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{4,0}, 
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			)
+
+		cursor.x += 2
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1, 0}, 
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		)
+	}
+
+	cursor.y += 5
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{-2,0}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, -4}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.x += 10
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{10,0}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.8, 0}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.x += 10
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{20,0}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.5, 0}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.y += 10
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{-15,-15}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	)
+
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.5, 0}, 
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+	)
+
+	cursor.x += 4
+
+	for i in 0..<6
+	{
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
+		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+		)
+
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1, 0}, 
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+		)
 	}
 
 
+
+
+
 	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
-	set_next_entity(end_handle, start_handle) // make ring
+	// set_next_entity(end_handle, start_handle) // make ring
 
 	// we keep external handle of biscuit cause right now we only have 1
 	// so now we don't have to go hunting for it in the entity array
@@ -978,7 +1088,7 @@ root_state_game :: proc()
 {
 	@(static) level_number := 3
 
-	biscuit_in_bounds_region := rl.Rectangle { 0, 0, 5000, 300} // i dont think we need it anymroe. i just made it really big
+	// biscuit_in_bounds_region := rl.Rectangle { 0, 0, 5000, 300} // i dont think we need it anymroe. i just made it really big
 
 	{ // check if track over
 		length_of_track := rl.GetMusicTimeLength(gmem.music)
@@ -1016,7 +1126,8 @@ root_state_game :: proc()
     	// reset
     	// rl.StopMusicStream(gmem.music)
     	gmem.track_time_ms_previous = 0
-    	create_level_4()
+    	// create_level_4()
+    	root_state_game_enter()
     	// rl.PlayMusicStream(gmem.music)
     }
 
@@ -1461,27 +1572,27 @@ root_state_game :: proc()
        		biscuit_ptr.pos += biscuit.vel * frame_time
        	}
 
-       	{ // biscuit out of bounds?
-       		biscuit_root_collider := entity_get_root_collider(biscuit_h)
-       		is_biscuit_in_bounds := rl.CheckCollisionRecs(biscuit_root_collider, biscuit_in_bounds_region)
-       		if !is_biscuit_in_bounds
-       		{ 
-       			// just give it to someone
-       			// doesn't matter who right now
-       			biscuit.pos = [2]f32{0,0}
-       			biscuit.vel = [2]f32{0,0}
-       			entity_iter := ha_make_iter(gmem.entities)
-       			for entity, handle in ha_iter(&entity_iter)
-       			{
-       				// just give it to the first person you find
-       				if entity.sprite_data == .Person
-       				{
-						biscuit.parent_entity_handle = handle
-						break
-       				}
-       			}
-       		}
-       	}
+       	// { // biscuit out of bounds?
+       	// 	biscuit_root_collider := entity_get_root_collider(biscuit_h)
+       	// 	is_biscuit_in_bounds := rl.CheckCollisionRecs(biscuit_root_collider, biscuit_in_bounds_region)
+       	// 	if !is_biscuit_in_bounds
+       	// 	{ 
+       	// 		// just give it to someone
+       	// 		// doesn't matter who right now
+       	// 		biscuit.pos = [2]f32{0,0}
+       	// 		biscuit.vel = [2]f32{0,0}
+       	// 		entity_iter := ha_make_iter(gmem.entities)
+       	// 		for entity, handle in ha_iter(&entity_iter)
+       	// 		{
+       	// 			// just give it to the first person you find
+       	// 			if entity.sprite_data == .Person
+       	// 			{
+		// 				biscuit.parent_entity_handle = handle
+		// 				break
+       	// 			}
+       	// 		}
+       	// 	}
+       	// }
     }
 
 
@@ -1752,7 +1863,7 @@ root_state_game :: proc()
      			}
 
      			{ // draw in-bounds region
-     				rlgrid.draw_rectangle_lines_on_grid(biscuit_in_bounds_region,0.1, rl.RED, 32 )
+     				// rlgrid.draw_rectangle_lines_on_grid(biscuit_in_bounds_region,0.1, rl.RED, 32 )
      			}
      		}
 
