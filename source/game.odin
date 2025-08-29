@@ -813,6 +813,69 @@ create_level_4 :: proc()
 }
 
 
+create_level_5 :: proc()
+{
+	rl.UnloadMusicStream(gmem.music)
+	gmem.track_time_ms_previous = 0
+    gmem.music = rl.LoadMusicStream("audio/Are-you-worthy-biscuit.mp3")
+    gmem.music_bpm = 132.0
+
+    rl.StopMusicStream(gmem.music)
+	rl.PlayMusicStream(gmem.music)
+
+	ha_clear(&gmem.entities)
+
+	start_cursor := [2]f32{2,6}
+	cursor := start_cursor
+
+	start_handle, end_handle : Entity_Handle
+	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*4,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+		 )
+	cursor.x += 2
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
+			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96 },
+		)
+	cursor.x += 4
+
+
+	for i in 0..<30
+	{
+	 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*3,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+		 )
+		cursor.x += 2
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
+			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+		)	
+
+		cursor.x += 2
+
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96 },
+		)
+		cursor.x += 2
+	}
+
+
+	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
+	set_next_entity(end_handle, start_handle) // make ring
+
+	// we keep external handle of biscuit cause right now we only have 1
+	// so now we don't have to go hunting for it in the entity array
+	// whenever we need it
+	biscuit_h = ha_add(&gmem.entities, Entity { parent_entity_handle = start_handle, pos = [2]f32{0,0}, sprite_data =.Regular_Biscuit, behaviors = { .Is_Biscuit }, collider = rl.Rectangle { 0.33, 0.33, 0.33, 0.33} })
+	set_parent(biscuit_h, start_handle)
+
+	// This just sets the head of the linked list
+	gmem.first_biscuit_parent_h = start_handle
+}
+
 
 
 // GAMEPLAY 
@@ -1397,63 +1460,65 @@ root_state_game :: proc()
        	}
 
    		{ // biscuit affecting parent. IOW: Biscuit will give the biscuit holder some ability
-			biscuit, _ := ha_get(gmem.entities, biscuit_h)
+			// biscuit, _ := ha_get(gmem.entities, biscuit_h)
 
-			parent_ptr := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
+			// parent_ptr := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
 
-			if parent_ptr != nil
-			{
-				if .Auto_Pass in parent_ptr.behaviors
-				{
-					just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
-					if just_finished
-					{
-						pass_biscuit(biscuit_h)
-					}
-				}
+			// if parent_ptr != nil
+			// {	
+			// 	// commenting all this out
+			// 	// if .Auto_Pass in parent_ptr.behaviors
+			// 	// {
+			// 	// 	just_finished := countdown_and_notify_just_finished(&parent_ptr.wait_timer, frame_time)
+			// 	// 	if just_finished
+			// 	// 	{
+			// 	// 		pass_biscuit(biscuit_h)
+			// 	// 	}
+			// 	// }
 
-				if .Moveable in parent_ptr.behaviors
-	   			{
-	   				if rl.IsKeyDown(.LEFT)
-	   				{
-	   					parent_ptr.vel.x = -parent_ptr.speed
-	   				}
-	   				else if rl.IsKeyDown(.RIGHT)
-	   				{
-	   					parent_ptr.vel.x = parent_ptr.speed
-	   				}
-	   				else
-	   				{
-	   					parent_ptr.vel.x = 0
-	   				}
-	   			}
+			// 	// if .Moveable in parent_ptr.behaviors
+	   		// 	// {
+	   		// 	// 	if rl.IsKeyDown(.LEFT)
+	   		// 	// 	{
+	   		// 	// 		parent_ptr.vel.x = -parent_ptr.speed
+	   		// 	// 	}
+	   		// 	// 	else if rl.IsKeyDown(.RIGHT)
+	   		// 	// 	{
+	   		// 	// 		parent_ptr.vel.x = parent_ptr.speed
+	   		// 	// 	}
+	   		// 	// 	else
+	   		// 	// 	{
+	   		// 	// 		parent_ptr.vel.x = 0
+	   		// 	// 	}
+	   		// 	// }
 
-	   			if .Shoot_In_Direction in parent_ptr.behaviors
-	   			{
-   					biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
+	   		// 	// commented out cause we not doing this anymore
+	   		// 	// if .Shoot_In_Direction in parent_ptr.behaviors
+	   		// 	// {
+   			// 	// 	biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
 
-	   				// Note(jblat): This sucks. It's because the parent switches as soon as biscuit is tossed to next parent
-	   				if biscuit_ptr.lerp_pos.timer.t >= biscuit_ptr.lerp_pos.timer.duration
-	   				{
-	   					if rl.IsKeyPressed(.SPACE)
-	   					{
-	   						root_biscuit_pos := entity_get_root_pos(biscuit_h)
-	   						biscuit_ptr.parent_entity_handle = {}
-	   						biscuit_ptr.pos = root_biscuit_pos
-			   				biscuit_ptr.lerp_pos.timer.t = biscuit_ptr.lerp_pos.timer.duration
-			   				biscuit_ptr.vel = [2]f32{
-			   					-math.cos(parent_ptr.aim_angle),
-			   					math.sin(parent_ptr.aim_angle)
-			   				}
-			   				biscuit_ptr.vel *= 3
-	   					}
-	   				}
-	   			}
-			}
+	   		// 	// 	// Note(jblat): This sucks. It's because the parent switches as soon as biscuit is tossed to next parent
+	   		// 	// 	if biscuit_ptr.lerp_pos.timer.t >= biscuit_ptr.lerp_pos.timer.duration
+	   		// 	// 	{
+	   		// 	// 		if rl.IsKeyPressed(.SPACE)
+	   		// 	// 		{
+	   		// 	// 			root_biscuit_pos := entity_get_root_pos(biscuit_h)
+	   		// 	// 			biscuit_ptr.parent_entity_handle = {}
+	   		// 	// 			biscuit_ptr.pos = root_biscuit_pos
+			//    	// 			biscuit_ptr.lerp_pos.timer.t = biscuit_ptr.lerp_pos.timer.duration
+			//    	// 			biscuit_ptr.vel = [2]f32{
+			//    	// 				-math.cos(parent_ptr.aim_angle),
+			//    	// 				math.sin(parent_ptr.aim_angle)
+			//    	// 			}
+			//    	// 			biscuit_ptr.vel *= 3
+	   		// 	// 		}
+	   		// 	// 	}
+	   		// 	// }
+			// }
 				
        	}
 
-       	{ // music timing stuff
+       	{ // music timing stuff for visual things - outside of user input checking
        		track_time_ms_current_i := i32(rl.GetMusicTimePlayed(gmem.music) * 1000)
        		track_time_ms_current_i += gmem.calibration_adjustment_ms
        		track_time_ms_current_i = max(0, track_time_ms_current_i)
@@ -1588,17 +1653,18 @@ root_state_game :: proc()
        		}
        	}
 
-       	{ // moving
-       		entity_iter := ha_make_iter(gmem.entities)
-       		for entity, handle in ha_iter(&entity_iter)
-       		{
-       			entity_ptr := ha_get_ptr(gmem.entities, handle)
-       			entity_ptr.pos += entity_ptr.vel * frame_time
-       		}
+       	// comment this out for now. MAYBE bring it back if we have entities move in the level
+       	// { // moving
+       	// 	entity_iter := ha_make_iter(gmem.entities)
+       	// 	for entity, handle in ha_iter(&entity_iter)
+       	// 	{
+       	// 		entity_ptr := ha_get_ptr(gmem.entities, handle)
+       	// 		entity_ptr.pos += entity_ptr.vel * frame_time
+       	// 	}
 
-       		biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
-       		biscuit_ptr.pos += biscuit.vel * frame_time
-       	}
+       	// 	biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
+       	// 	biscuit_ptr.pos += biscuit.vel * frame_time
+       	// }
 
        	// { // biscuit out of bounds?
        	// 	biscuit_root_collider := entity_get_root_collider(biscuit_h)
