@@ -30,15 +30,16 @@ bytes_png_back_button_spritesheet := #load("../assets/back_button.png")
 bytes_png_credits := #load("../assets/credits.png")
 bytes_png_menu_bg := #load("../assets/menu_bg.png")
 // bytes_png_framing_decorations := #load("../assets/framing_decorations.png")
+bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
 bytes_png_framing_decorations := #load("../assets/frame_curtains.png")
 bytes_png_game_bg := #load("../assets/game_bg.png")
 bytes_png_spinning_fg_decoration := #load("../assets/spinning-fg-decoration.png")
 
 
 
-
-
 global_filename_window_save_data := "window_save_data.jam"
+global_filename_calibration_save_data := "calibration_save_data.jam"
+
 global_game_view_pixels_width : f32 = 1280 / 2
 global_game_view_pixels_height : f32 = 720 / 2
 global_game_texture_grid_cell_size : f32 = 32
@@ -55,12 +56,19 @@ Window_Save_Data :: struct
 }
 
 
+Calibration_Save_Data :: struct
+{
+	calibration_adjustment_ms : i32,
+}
+
+
 Root_State :: enum 
 {
     Main_Menu,
     Game,
     Bumper,
 }
+
 
 Gameplay_State :: enum
 {
@@ -75,6 +83,7 @@ Result_Status :: enum
 	Hit,
 	Missed,
 }
+
 
 Game_Memory :: struct 
 {
@@ -172,6 +181,7 @@ Texture_Id :: enum {
 	Framing_Decoration,
 	Game_Bg,
 	Spinning_Decoration,
+	Spacebar_Sprite_Sheet,
 }
 
 
@@ -1021,6 +1031,7 @@ game_init :: proc()
     	.Framing_Decoration = bytes_png_framing_decorations[:],
     	.Game_Bg = bytes_png_game_bg[:],
     	.Spinning_Decoration = bytes_png_spinning_fg_decoration[:],
+	 	.Spacebar_Sprite_Sheet = bytes_png_spacebar_spritesheet[:],
 
     }
 
@@ -1050,7 +1061,16 @@ game_init :: proc()
     gmem.level_index_current = 0
 
     gmem.calibration_adjustment_ms = -20
-    // create_level_3()
+
+    calibration_data := Calibration_Save_Data{}
+
+    bytes_calibration_data, ok := read_entire_file(global_filename_calibration_save_data, context.temp_allocator)
+
+    if ok
+    {
+    	mem.copy(&calibration_data, &bytes_calibration_data[0], size_of(calibration_data))
+    	gmem.calibration_adjustment_ms = calibration_data.calibration_adjustment_ms
+    }
 
     root_state_main_menu_enter()
 
@@ -1508,7 +1528,7 @@ root_state_game :: proc()
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ms : u64 = 0
 
-       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.B) 
+       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.B) || rl.IsKeyPressed(.SPACE)
 
 
        		/**
@@ -1886,14 +1906,14 @@ root_state_game :: proc()
         }
 
         { // draw spacebar picture
-        	is_hit_key_down := rl.IsKeyDown(.B)
-        	if is_hit_key_down
+        	is_spacebar_key_down := rl.IsKeyDown(.SPACE)
+        	if is_spacebar_key_down
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.B_Button_Down, [2]f32{9.5, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Down, [2]f32{8.75, 7.5})
         	}
         	else
         	{
-        		draw_sprite_sheet_clip_on_game_texture_grid(.B_Button_Up, [2]f32{9.5, 7.5})
+        		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{8.75, 7.5})
         	}
         }
 
@@ -1986,13 +2006,22 @@ game_shutdown :: proc()
         screen_width := rl.GetScreenWidth()
         screen_height := rl.GetScreenHeight()
 
-        window_save_data := Window_Save_Data{i32(window_pos.x), i32(window_pos.y), screen_width, screen_height}
+        window_save_data := Window_Save_Data{i32(window_pos.x), i32(window_pos.y), screen_width, screen_height }
         bytes_window_save_data := mem.ptr_to_bytes(&window_save_data)
 
         ok := write_entire_file(global_filename_window_save_data, bytes_window_save_data)
         if !ok 
         {
             fmt.printfln("Error opening/creating Window Save Data File")
+        }
+
+        calibration_save_data := Calibration_Save_Data{gmem.calibration_adjustment_ms}
+        bytes_calibration_save_data := mem.ptr_to_bytes(&calibration_save_data)
+
+        ok = write_entire_file(global_filename_calibration_save_data, bytes_calibration_save_data)
+        if !ok
+        {
+        	fmt.printfln("Error opening/cereating Calibration Save Data File")
         }
     }
 }
