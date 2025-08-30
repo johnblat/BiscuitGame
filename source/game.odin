@@ -815,14 +815,29 @@ create_level_5 :: proc()
 	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*4,},
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
 		 )
-	cursor.x += 2
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
-			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	cursor.x += 1
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
 		)
 	cursor.x += 4
+
+	for i in 0..<2
+	{
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 + 96/2,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
+		 )
+		cursor.x += 1
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
+			)
+		cursor.x += 4
+	}
 
 
 	for i in 0..<30
@@ -830,10 +845,10 @@ create_level_5 :: proc()
 	 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 + 96/2,},
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
 		 )
-		cursor.x += 2
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
-				Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+		cursor.x += 1
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
 				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
 			)
