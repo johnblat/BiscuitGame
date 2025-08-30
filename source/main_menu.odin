@@ -11,7 +11,7 @@ root_state_main_menu_enter :: proc()
 	gmem.music = rl.LoadMusicStream("audio/biscuit.mp3")
 	rl.PlayMusicStream(gmem.music)
     gmem.root_state = .Main_Menu
-    gmem.main_menu_show_credits = false
+    // gmem.main_menu_show_credits = false
 
 }
 
@@ -59,7 +59,8 @@ root_state_main_menu :: proc()
 
 	    if is_input_start 
 	    {
-	    	root_state_bumper_enter()
+	    	root_state_story_enter()
+	    	// root_state_bumper_enter()
 	    }
 
 	    play_button_pos := [2]f32{13, 5}
@@ -84,7 +85,9 @@ root_state_main_menu :: proc()
 
 	    		if rl.IsMouseButtonPressed(.LEFT)
 	    		{
-	    			root_state_bumper_enter()
+	    			root_state_story_enter()
+
+	    			// root_state_bumper_enter()
 	    		}
 	    	}
 	    }

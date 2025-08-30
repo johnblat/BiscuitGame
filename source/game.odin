@@ -11,6 +11,7 @@ import rl "vendor:raylib"
 import rlgrid "./rlgrid"
 
 bytes_font_data := #load("../assets/joystix monospace.otf")
+
 bytes_png_giant_biscuit := #load("../assets/giant-biscuit.png")
 bytes_png_regular_biscuit := #load("../assets/half-sized-biscuit.png")
 bytes_png_person := #load("../assets/Person_Passing.png")
@@ -34,10 +35,14 @@ bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
 bytes_png_framing_decorations := #load("../assets/frame_curtains.png")
 bytes_png_game_bg := #load("../assets/game_bg.png")
 bytes_png_spinning_fg_decoration := #load("../assets/spinning-fg-decoration.png")
+
 bytes_png_opening_waving := #load("../assets/opening_waving.png")
 bytes_png_opening_tea_crayons := #load("../assets/opening_tea_crayons_crackers.png")
 bytes_png_opening_music := #load("../assets/opening_music.png")
-bytes_png_closing_waving := #load("../assets/closing-waving.png")
+
+bytes_png_ending_waving := #load("../assets/closing-waving.png")
+bytes_png_ending_parents := #load("../assets/ending_parents.png")
+bytes_png_ending_another_soveneir := #load("../assets/closing_another_soveneir.png")
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -70,6 +75,7 @@ Root_State :: enum
     Main_Menu,
     Game,
     Bumper,
+    Story,
 }
 
 
@@ -144,6 +150,10 @@ Game_Memory :: struct
     bumper_fade_out_timer : f32,
     bumper_did_voice_start : bool,
 
+    // story
+    story_mode_current : Story_Mode,
+    story_page_index : int,
+
     // DEBUG
     dbg_show_grid :                       bool,
     dbg_show_level :                      bool,
@@ -195,7 +205,18 @@ Texture_Id :: enum {
 	Game_Bg,
 	Spinning_Decoration,
 	Spacebar_Sprite_Sheet,
+
+	Opening_Waving,
+	Opening_Tea_Crayons,
+	Opening_Music,
+
+	Ending_Waving,
+	Ending_Parents,
+	Ending_Soveneir,
+
 }
+
+
 
 
 Sound_Id :: enum {
@@ -1229,6 +1250,15 @@ game_init :: proc()
     	.Spinning_Decoration = bytes_png_spinning_fg_decoration[:],
 	 	.Spacebar_Sprite_Sheet = bytes_png_spacebar_spritesheet[:],
 
+	 	.Opening_Waving = bytes_png_opening_waving[:],
+	 	.Opening_Tea_Crayons = bytes_png_opening_tea_crayons[:],
+	 	.Opening_Music = bytes_png_opening_music[:],
+
+	 	.Ending_Waving = bytes_png_ending_waving[:],
+	 	.Ending_Soveneir = bytes_png_ending_another_soveneir[:],
+	 	.Ending_Parents = bytes_png_ending_parents[:],
+
+
     }
 
     for bytes, tex_id in texture_bytes_png_map_to_load
@@ -1272,7 +1302,7 @@ game_init :: proc()
 
 }
 
-
+max_number_of_levels : u32 = 3
 
 root_state_game_enter :: proc()
 {
@@ -1281,7 +1311,6 @@ root_state_game_enter :: proc()
 	gmem.first_entity_appeared = false  // Reset grace period flag
 	
 	// depending on level, set it here
-	max_number_of_levels : u32 = 2
 
 	level := gmem.level_index_current
 
@@ -1299,6 +1328,10 @@ root_state_game_enter :: proc()
 	else if level == 1
 	{
 		create_level_4()
+	}
+	else if level == 2
+	{
+		create_level_5()
 	}
 	else
 	{
@@ -1325,12 +1358,13 @@ root_state_game :: proc()
 		{
 			// handle this case better
 			gmem.track_time_ms_previous = 0
-			max_number_of_levels : u32 = 2
 			gmem.level_index_current += 1
 			if gmem.level_index_current >= max_number_of_levels
 			{
 				gmem.level_index_current = 0
-				root_state_main_menu_enter()
+				gmem.story_mode_current = .Ending
+				gmem.story_page_index = 0
+				root_state_story_enter()
 				return
 			}
 			root_state_bumper_enter()
@@ -2259,6 +2293,8 @@ game_update :: proc()
 	        root_state_game()
 	    case .Bumper:
 	    	root_state_bumper()
+    	case .Story:
+    		root_state_story()
     }
 
 
