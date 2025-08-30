@@ -36,10 +36,20 @@ root_state_story_enter :: proc()
 {
 	gmem.root_state = .Story
 	gmem.story_page_index = 0
+	
+	// If entering ending cutscenes, load and play the monkey track
+	if gmem.story_mode_current == .Ending {
+		rl.UnloadMusicStream(gmem.music)
+		gmem.music = rl.LoadMusicStream("audio/monkey_full_160_extended.ogg")
+		rl.PlayMusicStream(gmem.music)
+	}
 }
 
 root_state_story :: proc()
 {
+	// Update music stream for both opening and ending cutscenes
+	rl.UpdateMusicStream(gmem.music)
+	
 	story_pages := story_books[gmem.story_mode_current]
 
 	is_on_last_page := gmem.story_page_index >= len(story_pages) - 1
@@ -51,6 +61,8 @@ root_state_story :: proc()
 	{
 		if gmem.story_mode_current == .Opening
 		{
+			// Stop the music before transitioning to bumper (which has its own audio)
+			rl.StopMusicStream(gmem.music)
 			gmem.story_mode_current = .Ending
 			gmem.level_index_current = 0
 			root_state_bumper_enter()
@@ -58,6 +70,8 @@ root_state_story :: proc()
 		}
 		else
 		{
+			// Ending cutscenes finished, stop the monkey track before returning to main menu
+			rl.StopMusicStream(gmem.music)
 			gmem.story_mode_current = .Opening
 			gmem.level_index_current = 0
 			gmem.main_menu_show_credits = true
