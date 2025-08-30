@@ -595,6 +595,7 @@ create_level_2 :: proc()
 
 create_level_3 :: proc()
 {
+	fmt.printfln("CREATE_LEVEL_3 CALLED - This is the version with timing fixes!")
 	rl.UnloadMusicStream(gmem.music)
     gmem.music = rl.LoadMusicStream("audio/monkey_full_160_extended.ogg")
     gmem.music_bpm = 160.0
@@ -608,148 +609,80 @@ create_level_3 :: proc()
 	cursor := start_cursor
 
 	start_handle, end_handle : Entity_Handle
+	
+	// Measure 1: Count-in (no entities)
+	// Measure 2: beats 2 and 4 (first pattern A)
+	// First entity appears after 5 beats (4 count-in + 1 to reach beat 2)
 	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*5,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*5,}, // Beat 2 of measure 2
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}, // Beat 4 of measure 2
 		)
 
+	// Measure 3: beats 2, 3, 4 (pattern B)
 	cursor.x += 2
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 }, // Skip beat 1, hit beat 2
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },  // Beat 3
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },  // Beat 4
 		)
 
-	for i in 0..<4
+	// Now create the remaining 21 complete 2-measure patterns (measures 4-45)
+	// Each pattern: measure A (beats 2,4) + measure B (beats 2,3,4) = 5 entities per pattern
+	// 21 patterns × 5 entities = 105 entities
+	
+	for i in 0..<21
 	{
+		// Pattern A: beats 2 and 4
 		cursor.x += 2
-
 		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			)
+			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,}, // Skip beat 1, hit beat 2
+			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}, // Skip beat 3, hit beat 4
+		)
 
+		// Pattern B: beats 2, 3, 4  
 		cursor.x += 2
 		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0}, 
-				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-				Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			)
-	}
-
-	cursor.y -= 2
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0,-2}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-	)
-
-	cursor.x += 6
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2, 0.5}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.y -= 2
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0,-1}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-	)
-
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, -1}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.x += 5
-	for i in 0..<2
-	{
-		cursor.x += 2
-
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{4,0}, 
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			)
-
-		cursor.x += 2
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1, 0}, 
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 }, // Skip beat 1, hit beat 2
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },  // Beat 3
+			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },  // Beat 4
 		)
+		
+		// Vary Y position slightly for visual interest
+		if i % 4 == 3 {
+			cursor.y += f32(i % 3) - 1
+		}
 	}
-
-	cursor.y += 5
-
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{-2,0}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+	
+	// Total entities: 5 (initial) + 105 (21 patterns) = 110 entities
+	// The last entity appears at beat 180, giving it time to reach the hit zone before the track ends
+	
+	// Add a small timing buffer after the last entity to ensure it can be processed
+	// This invisible entity won't be hit but extends the timing slightly
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
+		Entity { sprite_data = .None, behaviors = {}, delta_time_in_music_ticks = 96*4 }, // Buffer entity
 	)
-
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, -4}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.x += 10
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{10,0}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-	)
-
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.8, 0}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.x += 10
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{20,0}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-	)
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.5, 0}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.y += 10
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{-15,-15}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-	)
-
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0.5, 0}, 
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-	)
-
-	cursor.x += 4
-
-	for i in 0..<6
-	{
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2,},
-		 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-		)
-
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1, 0}, 
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-			Entity { sprite_data = .Shark, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 },
-		)
-	}
-
-
-
-
 
 	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
 	// set_next_entity(end_handle, start_handle) // make ring
+
+	// Count total beats for debugging
+	{
+		total_ticks : u64 = 0
+		entity_count := 0
+		temp_h := start_handle
+		for temp_h != {} {
+			if e, ok := ha_get(gmem.entities, temp_h); ok {
+				total_ticks += e.delta_time_in_music_ticks
+				entity_count += 1
+				temp_h = e.next_entity_handle
+				if temp_h == start_handle { break } // In case it's still a ring
+			} else {
+				break
+			}
+		}
+		total_beats := total_ticks / 96
+		fmt.printfln("Level 3: Total entities: %d, Total ticks: %d, Total beats: %d (target: 181)", entity_count, total_ticks, total_beats)
+	}
 
 	// we keep external handle of biscuit cause right now we only have 1
 	// so now we don't have to go hunting for it in the entity array
@@ -789,8 +722,12 @@ create_level_4 :: proc()
 		)
 	cursor.x += 4
 
-
-	for i in 0..<30
+	// At 132 BPM, need exactly 133 beats (measure 34, beat 1)
+	// Initial entities: 4+1+2+1+1 = 9 beats
+	// Each loop iteration: 8 beats (3+1+2+1+1)
+	// 15 iterations * 8 beats = 120 beats, plus initial 9 = 129 beats
+	// Then add final 4 beats to reach 133
+	for i in 0..<15  // 15 iterations to reach proper beat count
 	{
 	 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*3,},
@@ -810,9 +747,21 @@ create_level_4 :: proc()
 		cursor.x += 2
 	}
 
+	// Final entity to reach exactly beat 133 (measure 34, beat 1)
+	// Last entity in loop was on beat 2, need to wait 3 beats total to reach beat 1 of next measure
+	cursor.x += 4
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
+		Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*3 }, // Wait 3 beats to hit beat 1
+	)
+
+	// Add a buffer entity to ensure the last visible entity can be processed
+	// This invisible entity extends the timing chain so the last entity reaches the hit zone
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
+		Entity { sprite_data = .None, behaviors = {}, delta_time_in_music_ticks = 96*4 }, // Buffer entity
+	)
 
 	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
-	set_next_entity(end_handle, start_handle) // make ring
+	// set_next_entity(end_handle, start_handle) // Don't make ring anymore
 
 	// we keep external handle of biscuit cause right now we only have 1
 	// so now we don't have to go hunting for it in the entity array
@@ -1317,7 +1266,9 @@ root_state_game :: proc()
 		length_of_track := rl.GetMusicTimeLength(gmem.music)
 		current_time_in_track := rl.GetMusicTimePlayed(gmem.music)
 		
-		is_music_complete := current_time_in_track + 0.3 >= length_of_track // added additional time here because raylib will want to loop the song and im not quite sure if there a way to tell if the song just finised...
+		// Wait until we're actually at the end of the track, not 0.3 seconds before
+		// This gives the last entity time to be processed and hit
+		is_music_complete := current_time_in_track >= length_of_track - 0.05 // Small buffer to prevent looping
 		
 		force_other_level := rl.IsKeyPressed(.L)
 
