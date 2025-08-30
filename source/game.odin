@@ -95,6 +95,8 @@ Game_Memory :: struct
 	lives : i32, // Current number of lives
 	default_lives : i32, // Default starting lives  
 	life_lost_recently_frames : i32, // Cooldown to prevent losing multiple lives for the same mistake
+	hit_key_held : bool, // Track if hit key is being held to prevent multiple hits
+	first_entity_appeared : bool, // Track if we've seen the first entity yet (grace period)
 
     music :                               rl.Music,
     calibration_adjustment_ms : i32,
@@ -749,7 +751,6 @@ create_level_3 :: proc()
 
 	// This just sets the head of the linked list
 	gmem.first_biscuit_parent_h = start_handle
-
 }
 
 create_level_4 :: proc()
@@ -1150,6 +1151,7 @@ root_state_game_enter :: proc()
 {
 	// Reset lives to default value
 	gmem.lives = gmem.default_lives
+	gmem.first_entity_appeared = false  // Reset grace period flag
 	
 	// depending on level, set it here
 	max_number_of_levels : u32 = 2
@@ -1180,6 +1182,7 @@ root_state_game_enter :: proc()
 root_state_game :: proc() 
 {
 	@(static) level_number := 3
+	calibration_adjust := u64(16)
 
 	// biscuit_in_bounds_region := rl.Rectangle { 0, 0, 5000, 300} // i dont think we need it anymroe. i just made it really big
 
@@ -1365,7 +1368,7 @@ root_state_game :: proc()
             gmem.rectangle.y = new_pos.y
         }
 
-       	biscuit_id := entity_find_first_matching_behavior({.Is_Biscuit})
+       	// Use the global biscuit_h that was set in create_level functions
 
    		biscuit := ha_get_ptr(gmem.entities, biscuit_h)
    		biscuit_parent, _ := ha_get(gmem.entities, biscuit.parent_entity_handle)
@@ -1375,7 +1378,7 @@ root_state_game :: proc()
        	{
        		if !(.Shoot_In_Direction in biscuit_parent.behaviors)
        		{
-	       		pass_biscuit(biscuit_id)
+	       		pass_biscuit(biscuit_h)
        		}
        	}
 
@@ -1387,7 +1390,7 @@ root_state_game :: proc()
        		{
        			// TODO(jblat) : yuck
        			parent_ptr := ha_get_ptr(gmem.entities, biscuit.parent_entity_handle)
-       			if .Auto_Pass in parent_ptr.behaviors
+       			if parent_ptr != nil && .Auto_Pass in parent_ptr.behaviors
        			{
 					parent_ptr.wait_timer = parent_ptr.wait_timer_duration       				
        			}
@@ -1401,12 +1404,12 @@ root_state_game :: proc()
        			if handle == biscuit_h do continue
        			if .Hazard in entity.behaviors
        			{
-   					biscuit_root_collider := entity_get_root_collider(biscuit_id)
+   					biscuit_root_collider := entity_get_root_collider(biscuit_h)
    					hazard_root_collider := entity_get_root_collider(handle)
        				is_biscuit_colliding_with_hazard := rl.CheckCollisionRecs(biscuit_root_collider, hazard_root_collider)
        				if is_biscuit_colliding_with_hazard
        				{
-       					biscuit_root_pos := entity_get_root_pos(biscuit_id)
+       					biscuit_root_pos := entity_get_root_pos(biscuit_h)
        					// Note(jblat): This aint good, this just some way to represent that a hazard got in the way of the biscuit
        					biscuit_relative_to_return_parent := entity_root_pos_to_relative_pos(biscuit_root_pos, entity.next_entity_handle)
        					biscuit.parent_entity_handle = entity.next_entity_handle
@@ -1536,40 +1539,59 @@ root_state_game :: proc()
        		track_time_tick_previous := rhythm_get_ticks_from_ms(gmem.track_time_ms_previous, gmem.music_bpm)
 
        		// needs to change
-       		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
+       		entity_current, entity_ok := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
+       		if !entity_ok {
+       			// Entity not found, skip processing
+       			gmem.track_time_ms_previous = track_time_ms_current
+       			return
+       		}
        		entity_track_time_ticks : u64 = 0
+       		entity_count := 0
+       		music_event_count := 0
 
        		for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
        		{
+       			entity_count += 1
        			entity_track_time_ticks += entity_current.delta_time_in_music_ticks
 
        			if .Music_Event in entity_current.behaviors
        			{
-       				is_entity_current_within_trigger_window := false
+       					music_event_count += 1
+       					is_entity_current_within_trigger_window := false
 
-   					if track_time_tick_previous <= track_time_ticks_current
-   					{
-   						is_entity_current_within_trigger_window = entity_track_time_ticks >= track_time_tick_previous && entity_track_time_ticks < track_time_ticks_current		
-   					}
-   					else
-   					{
-   				    	is_entity_current_within_trigger_window = entity_track_time_ticks >= track_time_tick_previous || entity_track_time_ticks < track_time_ticks_current
-   					}
+   						if track_time_tick_previous <= track_time_ticks_current
+   						{
+   							is_entity_current_within_trigger_window = entity_track_time_ticks >= track_time_tick_previous && entity_track_time_ticks < track_time_ticks_current
+   						}
+   						else
+   						{
+   					    	is_entity_current_within_trigger_window = entity_track_time_ticks >= track_time_tick_previous || entity_track_time_ticks < track_time_ticks_current
+   						}
 
-   					if is_entity_current_within_trigger_window
-   					{
-   						// NOTE(jblat): we may want to ensure we set the parent to the current entity here
-   						// as otherwise there's nothing guaranteeing the biscuit is on the current musical entity
-   						// it could be on any entity
-   						pass_biscuit(biscuit_h)
-   					}
+   						if is_entity_current_within_trigger_window
+   						{
+   							// NOTE(jblat): we may want to ensure we set the parent to the current entity here
+   							// as otherwise there's nothing guaranteeing the biscuit is on the current musical entity
+   							// it could be on any entity
+   							if biscuit_h != {} {
+   								pass_biscuit(biscuit_h)
+   							}
+   							break // IMPORTANT: Only one music event should trigger per frame!
+   						}
+       				}
+
+       				next_handle := entity_current.next_entity_handle
+       				entity_current, entity_ok = ha_get(gmem.entities, next_handle)
+       				if !entity_ok && next_handle != gmem.first_biscuit_parent_h && next_handle != {} {
+       					break
+       				}
        			}
 
-       			entity_current, _ = ha_get(gmem.entities, entity_current.next_entity_handle)
-
+       			// Only update previous if we actually processed some time
+       			if track_time_ms_current > 0 {
+       				gmem.track_time_ms_previous = track_time_ms_current
+       			}
        		}
-
-       		gmem.track_time_ms_previous = track_time_ms_current
        	}
 
        	{ // check for musical hits on input
@@ -1607,7 +1629,18 @@ root_state_game :: proc()
        		entity_current, _ := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
        		entity_track_time_ms : u64 = 0
 
-       		did_user_attempt_hit_this_frame := rl.IsKeyPressed(.B) || rl.IsKeyPressed(.SPACE)
+       		// Check if hit keys are currently down
+       		hit_key_down := rl.IsKeyDown(.B) || rl.IsKeyDown(.SPACE)
+       		
+       		// Only register a hit attempt if key was just pressed (not held from previous frame)
+       		did_user_attempt_hit_this_frame := false
+       		if hit_key_down && !gmem.hit_key_held {
+       			did_user_attempt_hit_this_frame = true
+       		}
+       		
+       		// Update the held state for next frame
+       		gmem.hit_key_held = hit_key_down
+       		
        		hit_something := false // Track if we successfully hit any entity this frame
        		missed_entity := false // Track if any entity passed the timing window this frame
 
@@ -1640,6 +1673,11 @@ root_state_game :: proc()
 
        			if .Music_Event in entity_current.behaviors
        			{
+       				// Mark that we've seen our first entity
+       				if !gmem.first_entity_appeared {
+       					gmem.first_entity_appeared = true
+       				}
+       				
        				is_entity_current_within_hit_window := early_timing_window_ms <= entity_track_time_ms && entity_track_time_ms <= late_timing_window_ms
 
    					is_entity_already_missed_or_hit := entity_current.status == .Hit || entity_current.status == .Missed
@@ -1653,6 +1691,7 @@ root_state_game :: proc()
    						status_entity := Entity {parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Hit}
    						create_entity(status_entity)
    						hit_something = true
+   						break  // Only hit one entity per key press
    					}
 
    					did_user_miss_entity := entity_track_time_ms < early_timing_window_ms && !is_entity_already_missed_or_hit
@@ -1668,6 +1707,8 @@ root_state_game :: proc()
    							missed_entity = true
    							gmem.lives -= 1
    							gmem.life_lost_recently_frames = 10  // Prevents losing another life if user presses key right after
+   							// Don't process any more entities this frame after losing a life
+   							break
    						}
    					}
        			}
@@ -1677,11 +1718,15 @@ root_state_game :: proc()
        		
        		// Lose a life if user pressed but didn't hit anything (only if not on cooldown)
        		// The cooldown prevents double penalty when an entity is missed and user presses key in next frame
-       		if did_user_attempt_hit_this_frame && !hit_something && !missed_entity && gmem.life_lost_recently_frames == 0
+       		// Also don't lose life during grace period (before first entity appears)
+       		if did_user_attempt_hit_this_frame && !hit_something && !missed_entity && gmem.life_lost_recently_frames == 0 && gmem.first_entity_appeared
        		{
        			gmem.lives -= 1
        			gmem.life_lost_recently_frames = 10
        		}
+
+       		biscuit_ptr := ha_get_ptr(gmem.entities, biscuit_h)
+       		biscuit_ptr.pos += biscuit_ptr.vel * frame_time
        	}
        	
        	// Check if lives have run out
@@ -1727,11 +1772,8 @@ root_state_game :: proc()
        	// 		}
        	// 	}
        	// }
-    }
-
-
-    
-    {     // debug options
+       	
+    	{     // debug options
         if rl.IsKeyPressed(.F1) 
         {
             gmem.dbg_show_grid = !gmem.dbg_show_grid
@@ -1794,15 +1836,19 @@ root_state_game :: proc()
 
 
         
+        // Debug rectangle - only show in debug mode with a key held
+        when ODIN_DEBUG
         {
-            rlgrid.draw_rectangle_on_grid_justified(gmem.rectangle, gmem.rectangle_color, global_game_texture_grid_cell_size, .Centered, .Centered)
+            if rl.IsKeyDown(.LEFT_CONTROL)
+            {
+                rlgrid.draw_rectangle_on_grid_justified(gmem.rectangle, gmem.rectangle_color, global_game_texture_grid_cell_size, .Centered, .Centered)
+            }
         }
 
         {
         	entity_iter := ha_make_iter(gmem.entities)
         	for entity, handle in ha_iter(&entity_iter)
         	{
-        		
         		root_pos := entity_get_root_pos(handle)
 
         		

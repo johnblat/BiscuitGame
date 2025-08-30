@@ -74,7 +74,8 @@ ha_remove :: proc(ha: ^Handle_Array($T, $HT), h: HT) {
 }
 
 ha_valid :: proc(ha: Handle_Array($T, $HT), h: HT) -> bool {
-	return ha_get(ha, h) != nil
+	_, ok := ha_get(ha, h)
+	return ok
 }
 
 // Iterators for iterating over all used
