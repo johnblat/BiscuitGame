@@ -98,6 +98,11 @@ Game_Memory :: struct
 	hit_key_held : bool, // Track if hit key is being held to prevent multiple hits
 	first_entity_appeared : bool, // Track if we've seen the first entity yet (grace period)
 
+	// Rhythm timeline UI
+	timeline_width : f32,
+	timeline_position : [2]f32,
+	timeline_preview_seconds : f32,
+
     music :                               rl.Music,
     calibration_adjustment_ms : i32,
     clap_sound : rl.Sound,
@@ -926,6 +931,120 @@ rhythm_get_ms_from_ticks :: proc(ticks : u64, bpm : f32) -> u64
     return ms
 }
 
+draw_rhythm_timeline :: proc()
+{
+	if gmem.root_state != .Game do return
+	
+	// Get current music time
+	track_time_seconds := rl.GetMusicTimePlayed(gmem.music)
+	track_time_ms_current_i := i32(track_time_seconds * 1000) + gmem.calibration_adjustment_ms
+	track_time_ms_current_i = max(0, track_time_ms_current_i)
+	track_time_ms_current := u64(track_time_ms_current_i)
+	
+	// Timeline dimensions
+	timeline_x := gmem.timeline_position.x
+	timeline_y := gmem.timeline_position.y
+	timeline_end_x := timeline_x + gmem.timeline_width
+	timeline_center_x := timeline_x + gmem.timeline_width * 0.3  // Hit zone is 30% from left
+	
+	// Draw timeline base line
+	line_thickness : f32 = 0.05
+	rlgrid.draw_rectangle_on_grid(
+		rl.Rectangle{timeline_x, timeline_y - line_thickness/2, gmem.timeline_width, line_thickness},
+		rl.WHITE, 32
+	)
+	
+	// Draw hit window box (green filled rectangle)
+	hit_window_width : f32 = 0.8  // Width of the hit window box
+	hit_window_height : f32 = 0.6  // Height of the hit window box
+	rlgrid.draw_rectangle_on_grid(
+		rl.Rectangle{
+			timeline_center_x - hit_window_width/2,
+			timeline_y - hit_window_height/2,
+			hit_window_width,
+			hit_window_height
+		},
+		rl.Color{0, 255, 0, 100}, // Semi-transparent green
+		32
+	)
+	
+	// Draw hit window box outline
+	rlgrid.draw_rectangle_lines_on_grid(
+		rl.Rectangle{
+			timeline_center_x - hit_window_width/2,
+			timeline_y - hit_window_height/2,
+			hit_window_width,
+			hit_window_height
+		},
+		0.05,
+		rl.GREEN,
+		32
+	)
+	
+	// Calculate preview window in milliseconds
+	preview_ms := u64(gmem.timeline_preview_seconds * 1000)
+	start_preview_ms := track_time_ms_current
+	end_preview_ms := track_time_ms_current + preview_ms
+	
+	// Iterate through entities to find beats within preview window
+	entity_current, entity_ok := ha_get(gmem.entities, gmem.first_biscuit_parent_h)
+	if !entity_ok do return
+	
+	entity_track_time_ms : u64 = 0
+	
+	for entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
+	{
+		entity_track_time_ms += rhythm_get_ms_from_ticks(entity_current.delta_time_in_music_ticks, gmem.music_bpm)
+		
+		// Only show Music_Event entities on the timeline
+		if .Music_Event in entity_current.behaviors && entity_track_time_ms >= start_preview_ms && entity_track_time_ms <= end_preview_ms
+		{
+			// Calculate position on timeline
+			time_offset_ms := entity_track_time_ms - track_time_ms_current
+			time_offset_ratio := f32(time_offset_ms) / f32(preview_ms)
+			
+			// Position moves from right to left, reaching center at the hit time
+			circle_x := timeline_center_x + (gmem.timeline_width * 0.7) * time_offset_ratio
+			
+			// Determine circle color based on status
+			circle_color : rl.Color
+			if entity_current.status == .Hit
+			{
+				circle_color = rl.GREEN
+			}
+			else if entity_current.status == .Missed
+			{
+				circle_color = rl.RED
+			}
+			else
+			{
+				circle_color = rl.YELLOW  // Upcoming beat
+			}
+			
+			// Draw the beat circle
+			circle_radius : f32 = 0.25
+			rlgrid.draw_circle_on_grid(
+				[2]f32{circle_x, timeline_y},
+				circle_radius,
+				circle_color,
+				32
+			)
+		}
+		
+		// Stop if we've gone past the preview window
+		if entity_track_time_ms > end_preview_ms
+		{
+			break
+		}
+		
+		entity_current, entity_ok = ha_get(gmem.entities, entity_current.next_entity_handle)
+		if !entity_ok && entity_current.next_entity_handle != gmem.first_biscuit_parent_h && entity_current.next_entity_handle != {}
+		{
+			break
+		}
+	}
+}
+
 // API
 
 
@@ -1059,6 +1178,11 @@ game_init :: proc()
     gmem.root_state = .Main_Menu
     gmem.default_lives = 5
     gmem.lives = gmem.default_lives
+
+    // Initialize timeline UI
+    gmem.timeline_width = 14.0  // Width in grid units
+    gmem.timeline_position = [2]f32{3, 9}  // Position below the game area
+    gmem.timeline_preview_seconds = 3.0  // Show 3 seconds ahead
 
     game_render_target := rl.LoadRenderTexture(i32(global_game_view_pixels_width), i32(global_game_view_pixels_height))
     rl.SetTextureFilter(game_render_target.texture, rl.TextureFilter.POINT)
@@ -2067,6 +2191,10 @@ root_state_game :: proc()
         	{
         		draw_sprite_sheet_clip_on_game_texture_grid(.Spacebar_Up, [2]f32{8.75, 7.5})
         	}
+        }
+
+        { // draw rhythm timeline UI
+        	draw_rhythm_timeline()
         }
 
         { // draw decorations
