@@ -4,6 +4,7 @@ import "base:intrinsics"
 import "core:c"
 import "core:fmt"
 import "core:math"
+import "core:math/rand"
 import "core:mem"
 import "core:strings"
 import rl "vendor:raylib"
@@ -44,6 +45,14 @@ bytes_png_ending_waving := #load("../assets/closing-waving.png")
 bytes_png_ending_parents := #load("../assets/ending_parents.png")
 bytes_png_ending_another_soveneir := #load("../assets/closing_another_soveneir.png")
 
+// Celebration sound effects
+bytes_mp3_weeeeee_long := #load("../audio/weeeeee_long.mp3")
+bytes_mp3_woo_hoo_1 := #load("../audio/woo_hoo_1.mp3")
+bytes_mp3_woo_hoo_2 := #load("../audio/woo_hoo_2.mp3")
+bytes_mp3_yay_1 := #load("../audio/yay_1.mp3")
+bytes_mp3_yay_long := #load("../audio/yay_long.mp3")
+bytes_mp3_yippe_1 := #load("../audio/yippe_1.mp3")
+
 
 global_filename_window_save_data := "window_save_data.jam"
 global_filename_calibration_save_data := "calibration_save_data.jam"
@@ -54,6 +63,18 @@ global_game_texture_grid_cell_size : f32 = 32
 global_number_grid_cells_axis_x : f32 = global_game_view_pixels_width / global_game_texture_grid_cell_size
 global_number_grid_cells_axis_y : f32 = global_game_view_pixels_height / global_game_texture_grid_cell_size
 global_sprite_sheet_cell_size : f32 = 32
+
+// Celebration particle structure
+Celebration_Particle :: struct {
+    pos: [2]f32,
+    vel: [2]f32,
+    lifetime: f32,
+    max_lifetime: f32,
+    rotation: f32,
+    rotation_speed: f32,
+    scale: f32,
+    color: rl.Color,
+}
 
 
 
@@ -83,6 +104,7 @@ Gameplay_State :: enum
 {
 	Playing,
 	Level_Failed,
+	Level_Complete_Celebration,
 }
 
 
@@ -118,6 +140,9 @@ Game_Memory :: struct
     ready_sound : rl.Sound,
 
     pop_sound : rl.Sound,
+    
+    
+    celebration_sounds : [6]rl.Sound,
 
 	track_time_ms_previous : u64,
 	music_bpm : f32,
@@ -169,6 +194,15 @@ Game_Memory :: struct
     main_menu_any_button_hovered_previous : bool,
 
     level_index_current : u32,
+
+    // Celebration state
+    celebration_timer : f32,
+    celebration_particles : [dynamic]Celebration_Particle,
+    celebration_sound_played : bool,
+    gameplay_state : Gameplay_State,
+    last_entity_was_hit : bool,
+    last_hittable_entity_handle : Entity_Handle,  // Track the last entity that can be hit
+    music_volume : f32,  // Track music volume for fading
 }
 
 
@@ -622,6 +656,8 @@ create_level_3 :: proc()
     gmem.music_bpm = 160.0
 
 	rl.StopMusicStream(gmem.music)
+	gmem.music_volume = 1.0  // Reset volume tracking
+	rl.SetMusicVolume(gmem.music, 1.0)  // Reset volume to full
 	rl.PlayMusicStream(gmem.music)
 
 	ha_clear(&gmem.entities)
@@ -676,6 +712,10 @@ create_level_3 :: proc()
 	
 	// Total entities: 5 (initial) + 105 (21 patterns) = 110 entities
 	// The last entity appears at beat 180, giving it time to reach the hit zone before the track ends
+	
+	// Save the last hittable entity before adding the buffer
+	gmem.last_hittable_entity_handle = end_handle
+	fmt.printfln("DEBUG: Level 3 - Last hittable entity handle: %v", end_handle)
 	
 	// Add a small timing buffer after the last entity to ensure it can be processed
 	// This invisible entity won't be hit but extends the timing slightly
@@ -775,6 +815,10 @@ create_level_4 :: proc()
 		Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*3 }, // Wait 3 beats to hit beat 1
 	)
 
+	// Save the last hittable entity before adding the buffer
+	gmem.last_hittable_entity_handle = end_handle
+	fmt.printfln("DEBUG: Level 4 - Last hittable entity handle: %v", end_handle)
+
 	// Add a buffer entity to ensure the last visible entity can be processed
 	// This invisible entity extends the timing chain so the last entity reaches the hit zone
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
@@ -797,6 +841,7 @@ create_level_4 :: proc()
 
 create_level_5 :: proc()
 {
+	fmt.printfln("CREATE_LEVEL_5 CALLED - 154 BPM, 42 measures, 101 entities")
 	rl.UnloadMusicStream(gmem.music)
 	gmem.track_time_ms_previous = 0
 
@@ -804,6 +849,8 @@ create_level_5 :: proc()
     gmem.music_bpm = 154.0
 
     rl.StopMusicStream(gmem.music)
+	gmem.music_volume = 1.0  // Reset volume tracking
+	rl.SetMusicVolume(gmem.music, 1.0)  // Reset volume to full
 	rl.PlayMusicStream(gmem.music)
 
 	ha_clear(&gmem.entities)
@@ -811,53 +858,67 @@ create_level_5 :: proc()
 	start_cursor := [2]f32{2,6}
 	cursor := start_cursor
 
+	// Pattern for level 3 at 154 BPM:
+	// Measure A (odd): Beats 1 and 3 (2 entities)
+	// Measure B (even): Beats 1, 3, and "and of 3" (beat 3.5) (3 entities)
+	// Total: 40 measures with entities (measures 2-41) + beat 1 of measure 42 = 101 entities
+	
+	// First entity appears at beat 1 of measure 2 (after 4-beat count-in)
 	start_handle, end_handle : Entity_Handle
-	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*4,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
-		 )
-	cursor.x += 1
-	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
+	
+	// Create all 20 pattern pairs (measures 2-41)
+	for pair_idx in 0..<20 {
+		// Measure A: beats 1 and 3
+		if pair_idx == 0 {
+			// First measure A starts after count-in
+			cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
+				Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*4 }, // Beat 1 after count-in
+				Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 }, // Beat 3
+			)
+		} else {
+			// Subsequent Measure A: need to wait from previous "and of 3" to beat 1
+			cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0},
+				Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 48 + 96 }, // Half beat + 1 beat to reach beat 1
+				Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 },    // Beat 3
+			)
+		}
+		
+		// Measure B: beats 1, 3, and "and of 3"
+		cursor.x += 2
+		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0},
+			Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 }, // Beat 1
+			Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2 }, // Beat 3
+			Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 48 },   // "And of 3"
 		)
-	cursor.x += 4
-
-	for i in 0..<2
-	{
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 + 96/2,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
-		 )
-		cursor.x += 1
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
-			)
-		cursor.x += 4
+		
+		cursor.x += 2
+		
+		// Add visual variety
+		if pair_idx % 3 == 0 {
+			cursor.y = 5 + f32(pair_idx % 3)
+		}
 	}
-
-
-	for i in 0..<30
-	{
-	 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 + 96/2,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2}
-		 )
-		cursor.x += 1
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{1,0}, 		 
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
-			)
-		cursor.x += 4
-	}
-
+	
+	// Final entity: beat 1 of measure 42
+	// Need to wait from previous "and of 3" to beat 1 of next measure
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
+		Entity { sprite_data = .Person, behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 48 + 96 }, // Half beat + 1 beat
+	)
+	
+	// Total count check
+	fmt.println("DEBUG: Level 5 - Created 101 entities (20 pairs × 5 + 1 final)")
+	
+	// Save the last hittable entity before adding the buffer
+	gmem.last_hittable_entity_handle = end_handle
+	fmt.printfln("DEBUG: Level 5 - Last hittable entity handle: %v", end_handle)
+	
+	// Add a buffer entity to ensure the last visible entity can be processed
+	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{0, 0},
+		Entity { sprite_data = .None, behaviors = {}, delta_time_in_music_ticks = 96*4 }, // Buffer entity
+	)
 
 	// Note(jblat): I dont think this _needs_ to be a ring since the song won't be looping anymore
-	set_next_entity(end_handle, start_handle) // make ring
+	// set_next_entity(end_handle, start_handle) // Don't make ring
 
 	// we keep external handle of biscuit cause right now we only have 1
 	// so now we don't have to go hunting for it in the entity array
@@ -1162,6 +1223,7 @@ game_init :: proc()
     gmem.root_state = .Main_Menu
     gmem.default_lives = 5
     gmem.lives = gmem.default_lives
+    gmem.music_volume = 1.0  // Initialize music volume
 
     // Initialize timeline UI
     gmem.timeline_width = 14.0  // Width in grid units
@@ -1240,6 +1302,14 @@ game_init :: proc()
     gmem.bumper_sparkle_sound = rl.LoadSound("audio/success_1.mp3")
 
     gmem.pop_sound = rl.LoadSound("audio/ui_select.mp3")
+    
+    // Load celebration sounds
+    gmem.celebration_sounds[0] = rl.LoadSound("audio/weeeeee_long.mp3")
+    gmem.celebration_sounds[1] = rl.LoadSound("audio/woo_hoo_1.mp3")
+    gmem.celebration_sounds[2] = rl.LoadSound("audio/woo_hoo_2.mp3")
+    gmem.celebration_sounds[3] = rl.LoadSound("audio/yay_1.mp3")
+    gmem.celebration_sounds[4] = rl.LoadSound("audio/yay_long.mp3")
+    gmem.celebration_sounds[5] = rl.LoadSound("audio/yippe_1.mp3")
 
     gmem.sounds[.Voice_Bumper_Circus] = rl.LoadSound("audio/bumper_circus.wav")
     gmem.sounds[.Voice_Bumper_Unicycle] = rl.LoadSound("audio/bumper_unicycle.wav")
@@ -1263,6 +1333,205 @@ game_init :: proc()
 }
 
 max_number_of_levels : u32 = 3
+
+// Celebration helper functions
+start_level_celebration :: proc() {
+    fmt.println("DEBUG: Starting level celebration!")
+    
+    gmem.gameplay_state = .Level_Complete_Celebration
+    gmem.celebration_timer = 3.0  // 3 seconds of celebration
+    gmem.celebration_sound_played = false
+    gmem.music_volume = 1.0  // Start with full volume for fade out
+    
+    // Clear any existing particles
+    clear(&gmem.celebration_particles)
+    
+    // Create initial burst of particles
+    for i := 0; i < 50; i += 1 {
+        create_celebration_particle()
+    }
+}
+
+create_celebration_particle :: proc() {
+    particle := Celebration_Particle{}
+    
+    // Start from center of screen with some variance
+    center_x := global_number_grid_cells_axis_x / 2
+    center_y := global_number_grid_cells_axis_y / 2 - 2  // Slightly above center
+    
+    particle.pos.x = center_x + (rand.float32() - 0.5) * 8
+    particle.pos.y = center_y + (rand.float32() - 0.5) * 4
+    
+    // Random velocity in upward/outward direction
+    angle := rand.float32() * math.TAU
+    speed := 3 + rand.float32() * 7
+    particle.vel.x = math.cos(angle) * speed
+    particle.vel.y = math.sin(angle) * speed - 5  // Bias upward
+    
+    particle.max_lifetime = 1.5 + rand.float32() * 1.0
+    particle.lifetime = particle.max_lifetime
+    
+    particle.rotation = rand.float32() * math.TAU
+    particle.rotation_speed = (rand.float32() - 0.5) * 10
+    
+    particle.scale = 0.3 + rand.float32() * 0.7
+    
+    // Random colors (bright and festive)
+    colors := [?]rl.Color{
+        {255, 220, 100, 255},  // Yellow
+        {255, 150, 100, 255},  // Orange
+        {255, 100, 150, 255},  // Pink
+        {100, 255, 150, 255},  // Green
+        {150, 150, 255, 255},  // Blue
+        {255, 255, 255, 255},  // White
+    }
+    particle.color = colors[int(rand.float32() * f32(len(colors)))]
+    
+    append(&gmem.celebration_particles, particle)
+}
+
+update_celebration :: proc(dt: f32) {
+    // Update timer
+    gmem.celebration_timer -= dt
+    
+    // Fade out the music gradually during celebration
+    if gmem.music_volume > 0.1 {
+        gmem.music_volume -= dt * 0.3 // Fade over ~3 seconds
+        rl.SetMusicVolume(gmem.music, gmem.music_volume)
+    }
+    
+    // Play multiple celebration sounds for crowd effect
+    if !gmem.celebration_sound_played {
+        gmem.celebration_sound_played = true
+        // Play 3-4 random sounds to create crowd effect
+        for i := 0; i < 3; i += 1 {
+            sound_index := int(rand.float32() * 6)
+            rl.SetSoundVolume(gmem.celebration_sounds[sound_index], 2.0 + rand.float32() * 1.0)  // Increased from 0.6-1.0 to 2.0-3.0
+            rl.PlaySound(gmem.celebration_sounds[sound_index])
+            fmt.printfln("DEBUG: Playing celebration sound %d with volume %.2f", sound_index, 2.0 + rand.float32() * 1.0)
+        }
+    }
+    
+    // Play additional sounds randomly during celebration for crowd effect
+    if rand.float32() < 0.15 && gmem.celebration_timer > 0.5 {
+        sound_index := int(rand.float32() * 6)
+        rl.SetSoundVolume(gmem.celebration_sounds[sound_index], 1.5 + rand.float32() * 0.5)  // Increased from 0.3-0.6 to 1.5-2.0
+        rl.PlaySound(gmem.celebration_sounds[sound_index])
+    }
+    
+    // Spawn new particles occasionally
+    if rand.float32() < 0.3 && len(gmem.celebration_particles) < 100 {
+        create_celebration_particle()
+    }
+    
+    // Update particles
+    gravity : f32 = 15
+    for i := len(gmem.celebration_particles) - 1; i >= 0; i -= 1 {
+        p := &gmem.celebration_particles[i]
+        
+        p.lifetime -= dt
+        p.pos += p.vel * dt
+        p.vel.y += gravity * dt  // Apply gravity
+        p.rotation += p.rotation_speed * dt
+        
+        // Fade out
+        alpha_ratio := p.lifetime / p.max_lifetime
+        p.color.a = u8(255 * alpha_ratio)
+        
+        // Remove dead particles
+        if p.lifetime <= 0 {
+            ordered_remove(&gmem.celebration_particles, i)
+        }
+    }
+    
+    // Transition to bumper when celebration is done
+    if gmem.celebration_timer <= 0 {
+        fmt.println("DEBUG: Celebration complete, transitioning to next level")
+        clear(&gmem.celebration_particles)
+        gmem.gameplay_state = .Playing
+        
+        // Increment level and handle transitions
+        gmem.level_index_current += 1
+        if gmem.level_index_current >= max_number_of_levels {
+            gmem.level_index_current = 0
+            gmem.story_mode_current = .Ending
+            gmem.story_page_index = 0
+            root_state_story_enter()
+        } else {
+            root_state_bumper_enter()
+        }
+    }
+}
+
+render_celebration :: proc() {
+    // Draw particles
+    biscuit_texture := gmem.textures[.Giant_Biscuit]
+    
+    for &p in gmem.celebration_particles {
+        src := rl.Rectangle{0, 0, f32(biscuit_texture.width), f32(biscuit_texture.height)}
+        dst := rl.Rectangle{
+            p.pos.x * global_game_texture_grid_cell_size,
+            p.pos.y * global_game_texture_grid_cell_size,
+            global_game_texture_grid_cell_size * p.scale,
+            global_game_texture_grid_cell_size * p.scale,
+        }
+        origin := rl.Vector2{dst.width / 2, dst.height / 2}
+        
+        rl.DrawTexturePro(
+            biscuit_texture,
+            src,
+            dst,
+            origin,
+            math.to_degrees(p.rotation),
+            p.color,
+        )
+    }
+    
+    // Draw "Level Complete!" text
+    text : cstring = "Level Complete!"
+    font_size : f32 = 1.5  // Reduced from 2.0 to fit better on screen
+    text_pos := [2]f32{
+        global_number_grid_cells_axis_x / 2,
+        global_number_grid_cells_axis_y / 2 - 3,
+    }
+    
+    // Draw with pulsing effect (reduced pulse range to stay on screen)
+    pulse := f32(math.sin(f64(rl.GetTime()) * 5) * 0.05 + 1.0)  // Reduced from 0.1 to 0.05 for subtler pulsing
+    scaled_font_size := font_size * pulse
+    
+    // Draw black outline/stroke by drawing text multiple times with slight offsets
+    outline_thickness : f32 = 0.03  // Thickness in grid units
+    outline_offsets := [8][2]f32{
+        {-1, -1}, {0, -1}, {1, -1},  // Top row
+        {-1,  0},          {1,  0},  // Middle row (skip center)
+        {-1,  1}, {0,  1}, {1,  1},  // Bottom row
+    }
+    
+    // Draw the outline
+    for offset in outline_offsets {
+        outline_pos := text_pos + offset * outline_thickness
+        rlgrid.draw_text_on_grid_centered(
+            gmem.font,
+            text,
+            outline_pos,
+            scaled_font_size,
+            0,
+            rl.BLACK,
+            global_game_texture_grid_cell_size,
+        )
+    }
+    
+    // Draw the main white text on top
+    rlgrid.draw_text_on_grid_centered(
+        gmem.font,
+        text,
+        text_pos,
+        scaled_font_size,
+        0,
+        rl.WHITE,
+        global_game_texture_grid_cell_size,
+    )
+}
 
 root_state_game_enter :: proc()
 {
@@ -1317,20 +1586,13 @@ root_state_game :: proc()
 
 		if is_music_complete || force_other_level
 		{
-			// handle this case better
-			gmem.track_time_ms_previous = 0
-			gmem.level_index_current += 1
-			if gmem.level_index_current >= max_number_of_levels
-			{
-				gmem.level_index_current = 0
-				gmem.story_mode_current = .Ending
-				gmem.story_page_index = 0
-				root_state_story_enter()
-				return
+			// Only start celebration if we haven't already (from hitting last entity)
+			if gmem.gameplay_state != .Level_Complete_Celebration {
+				fmt.println("DEBUG: Music complete or force level change, starting celebration")
+				gmem.track_time_ms_previous = 0
+				start_level_celebration()
 			}
-			root_state_bumper_enter()
 			return
-
 		}
 	}
 
@@ -1439,7 +1701,15 @@ root_state_game :: proc()
 
     if should_run_simulation 
     {
-		rl.UpdateMusicStream(gmem.music)
+        // Always update music stream to keep it playing
+        rl.UpdateMusicStream(gmem.music)
+        
+        // Handle celebration state
+        if gmem.gameplay_state == .Level_Complete_Celebration {
+            update_celebration(frame_time * gmem.dbg_speed_multiplier)
+            // Don't return - we still need to render!
+        } else {
+            // Normal game logic
 
 
         scale := min(f32(rl.GetScreenWidth()) / global_game_view_pixels_width, f32(rl.GetScreenHeight()) / global_game_view_pixels_height)
@@ -1813,6 +2083,15 @@ root_state_game :: proc()
    						status_entity := Entity {parent_entity_handle = entity_current.handle, pos = [2]f32{0, -1}, sprite_data = .Status_Hit}
    						create_entity(status_entity)
    						hit_something = true
+   						
+   						// Check if this is the last hittable entity
+   						if entity_current.handle == gmem.last_hittable_entity_handle {
+   							fmt.println("DEBUG: Last entity hit! Starting celebration!")
+   							gmem.last_entity_was_hit = true
+   							// Start celebration after a short delay to let the hit animation play
+   							start_level_celebration()
+   						}
+   						
    						break  // Only hit one entity per key press
    					}
 
@@ -1932,10 +2211,11 @@ root_state_game :: proc()
 		biscuit_root_pos += 0.5
 		actual_pos := rlgrid.get_actual_pos(biscuit_root_pos, 32)
 		gmem.camera.target = actual_pos 
+        } // End of else block (non-celebration game logic)
+    } // End of should_run_simulation
 
-
-        	
-
+    // RENDERING SECTION - Always render regardless of celebration state
+    {
         rl.BeginTextureMode(gmem.game_render_target)
 
 
@@ -1975,7 +2255,7 @@ root_state_game :: proc()
 
         		
 
-        		//biscuit_root_pos := entity_get_root_pos(biscuit_h)
+        		biscuit_root_pos := entity_get_root_pos(biscuit_h)
         		biscuit_is_to_left_of_this_entity := biscuit_root_pos.x < root_pos.x
         		biscuit_is_to_right_of_this_entity := biscuit_root_pos.x > root_pos.x
 
@@ -2233,6 +2513,11 @@ root_state_game :: proc()
         		x_pos := start_x + i * spacing
         		rl.DrawTexture(biscuit_texture, x_pos, y_pos, rl.WHITE)
         	}
+        }
+        
+        // Render celebration if active
+        if gmem.gameplay_state == .Level_Complete_Celebration {
+            render_celebration()
         }
 
 
