@@ -4,3 +4,4 @@ build
 game_hot_reload.bin
 game_hot_reload.bin.dSYM/*
 .DS_Store
+audio/*.reapeaks

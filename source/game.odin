@@ -157,7 +157,7 @@ Game_Memory :: struct
     // DEBUG
     dbg_show_grid :                       bool,
     dbg_show_level :                      bool,
-    dbg_is_frogger_unkillable :           bool,
+    dbg_is_unkillable :           bool,
     dbg_show_entity_bounding_rectangles : bool,
     dbg_speed_multiplier :                f32,
     dbg_camera_offset :                   [2]f32,
@@ -850,8 +850,9 @@ create_level_5 :: proc()
 {
 	rl.UnloadMusicStream(gmem.music)
 	gmem.track_time_ms_previous = 0
-    gmem.music = rl.LoadMusicStream("audio/Are-you-worthy-biscuit.mp3")
-    gmem.music_bpm = 132.0
+
+    gmem.music = rl.LoadMusicStream("audio/chip_full_154_extended.ogg")
+    gmem.music_bpm = 154.0
 
     rl.StopMusicStream(gmem.music)
 	rl.PlayMusicStream(gmem.music)
@@ -864,13 +865,13 @@ create_level_5 :: proc()
 	start_handle, end_handle : Entity_Handle
 	cursor, start_handle, end_handle = create_entities_with_cursor_and_set_next(cursor, Entity_Handle{}, [2]f32{2,0}, 
 			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*4,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 		 )
 	cursor.x += 2
 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
 			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96 },
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
 		)
 	cursor.x += 4
 
@@ -878,21 +879,16 @@ create_level_5 :: proc()
 	for i in 0..<30
 	{
 	 	cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*3,},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96 + 96/2,},
+			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
 		 )
 		cursor.x += 2
 		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 		 
-			Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
-		)	
-
-		cursor.x += 2
-
-		cursor, _, end_handle = create_entities_with_cursor_and_set_next(cursor, end_handle, [2]f32{2,0}, 
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96},
-			 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96 },
-		)
-		cursor.x += 2
+				Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event}, delta_time_in_music_ticks = 96*2},
+				 Entity { sprite_data = .Person,  behaviors = {.Face_Biscuit, .Music_Event, }, delta_time_in_music_ticks = 96/2 },
+			)
+		cursor.x += 4
 	}
 
 
@@ -1215,7 +1211,7 @@ game_init :: proc()
     gmem.game_render_target = game_render_target
 
     gmem.dbg_show_grid = false
-    gmem.dbg_is_frogger_unkillable = false
+    gmem.dbg_is_unkillable = false
 
     gmem.font = rl.LoadFontFromMemory(".otf", &bytes_font_data[0], i32(len(bytes_font_data)), 256*2, nil, 0)
 
@@ -1341,7 +1337,6 @@ root_state_game_enter :: proc()
 
 root_state_game :: proc() 
 {
-	@(static) level_number := 3
 	calibration_adjust := u64(16)
 
 	// biscuit_in_bounds_region := rl.Rectangle { 0, 0, 5000, 300} // i dont think we need it anymroe. i just made it really big
@@ -1857,7 +1852,7 @@ root_state_game :: proc()
 
    					did_user_miss_entity := entity_track_time_ms < early_timing_window_ms && !is_entity_already_missed_or_hit
    					
-   					if did_user_miss_entity 
+   					if did_user_miss_entity && !gmem.dbg_is_unkillable 
    					{
    						entity_current_ptr := ha_get_ptr(gmem.entities, entity_current.handle)
    						entity_current_ptr.status = .Missed
@@ -1942,7 +1937,7 @@ root_state_game :: proc()
 
         if rl.IsKeyPressed(.F2) 
         {
-            gmem.dbg_is_frogger_unkillable = !gmem.dbg_is_frogger_unkillable
+            gmem.dbg_is_unkillable = !gmem.dbg_is_unkillable
         }
 
         if rl.IsKeyPressed(.F3) 
