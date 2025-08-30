@@ -34,7 +34,10 @@ bytes_png_spacebar_spritesheet := #load("../assets/spacebar-prompt.png")
 bytes_png_framing_decorations := #load("../assets/frame_curtains.png")
 bytes_png_game_bg := #load("../assets/game_bg.png")
 bytes_png_spinning_fg_decoration := #load("../assets/spinning-fg-decoration.png")
-
+bytes_png_opening_waving := #load("../assets/opening_waving.png")
+bytes_png_opening_tea_crayons := #load("../assets/opening_tea_crayons_crackers.png")
+bytes_png_opening_music := #load("../assets/opening_music.png")
+bytes_png_closing_waving := #load("../assets/closing-waving.png")
 
 
 global_filename_window_save_data := "window_save_data.jam"
@@ -1314,11 +1317,11 @@ root_state_game :: proc()
 		length_of_track := rl.GetMusicTimeLength(gmem.music)
 		current_time_in_track := rl.GetMusicTimePlayed(gmem.music)
 		
-		music_is_over := current_time_in_track + 0.3 >= length_of_track // added additional time here because raylib will want to loop the song and im not quite sure if there a way to tell if the song just finised...
+		is_music_complete := current_time_in_track + 0.3 >= length_of_track // added additional time here because raylib will want to loop the song and im not quite sure if there a way to tell if the song just finised...
 		
 		force_other_level := rl.IsKeyPressed(.L)
 
-		if music_is_over || force_other_level
+		if is_music_complete || force_other_level
 		{
 			// handle this case better
 			gmem.track_time_ms_previous = 0
